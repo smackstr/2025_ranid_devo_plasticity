@@ -98,7 +98,7 @@ morph.data.juv = morph.data.juv[morph.data.juv$post.mm.weeks != "5-7" & morph.da
 morph.data.juv = morph.data.juv[morph.data.juv$repeat.measure == "no",]
 
 # COMPILE DATASETS: Combine morph.data.mm and morph.data.juv  -----------------------
-morph.data.mm.juv <- rbind(morph.data.mm[, c("date.measured",
+morph.data.mm.juv <- rbind(morph.data.mm[morph.data.mm$first.six == "yes", c("date.measured",
                                              "age.weeks",
                                              "post.mm.weeks",
                                              "post.mm.sampling",
@@ -136,7 +136,7 @@ morph.data.mm.juv <- rbind(morph.data.mm[, c("date.measured",
                                              "mean.days.forelimb")])
 
 
-# PLOT DATASETS: Effect of rearing density on morphometrics at and after metamorphosis -----------------------
+# PLOT DATASETS: Effect of rearing density on morphometrics at and after metamorphosis for first six individuals from each tank -----------------------
 # option 1 = x-y plot with summarized mean and +/- 1 se for all metrics
 
 # create vector of morphometrics and y-axis labels
@@ -163,10 +163,10 @@ for(i in 1:length(metrics)){
     theme_bw() +
     theme(legend.title = element_blank(),
           legend.text = element_text(size=20),
-          axis.text.x=element_text(size=18, color = "black"), 
-          axis.text.y=element_text(size=18, color = "black"), 
-          axis.title.x=element_text(size=18, color = "black"), 
-          axis.title.y = element_text(size=18),
+          axis.text.x=element_text(size=16, color = "black"), 
+          axis.text.y=element_text(size=16, color = "black"), 
+          axis.title.x=element_text(size=16, color = "black"), 
+          axis.title.y = element_text(size=16),
           panel.grid.major = element_blank(), 
           panel.grid.minor = element_blank()) +
     expand_limits(y = 0) +
@@ -178,7 +178,10 @@ for(i in 1:length(metrics)){
 plotList.morph[[length(plotList.morph) + 1]] <- as_ggplot(get_legend(plotList.morph))
 
 # create panel plot with all morphometrics data across all sampling points
-ggarrange(plotlist = plotList.morph, legend = "none")
+ggarrange(plotlist = plotList.morph, 
+          legend = "none",
+          labels = c("a", "b", "c", "d", "e", ""),
+          font.label = list(size = 20, color = "black"))
 
 
 # option 2 = boxplot with summarized mean and +/- 1 se for all metrics
@@ -194,10 +197,10 @@ for(i in 1:length(metrics)){
   theme_bw() +
   theme(legend.title = element_blank(),
         legend.text = element_text(size=20),
-        axis.text.x=element_text(size=18, color = "black"), 
-        axis.text.y=element_text(size=18, color = "black"), 
-        axis.title.x=element_text(size=18, color = "black"), 
-        axis.title.y = element_text(size=18),
+        axis.text.x=element_text(size=14, color = "black"), 
+        axis.text.y=element_text(size=14, color = "black"), 
+        axis.title.x=element_text(size=14, color = "black"), 
+        axis.title.y = element_text(size=14),
         panel.grid.major = element_blank(), 
         panel.grid.minor = element_blank()) +
   expand_limits(y = 0) +
@@ -209,47 +212,45 @@ for(i in 1:length(metrics)){
 plotList.morph[[length(plotList.morph) + 1]] <- as_ggplot(get_legend(plotList.morph))
 
 # create panel plot with all morphometrics data across all sampling points
-ggarrange(plotlist = plotList.morph, legend = "none")
+ggarrange(plotlist = plotList.morph, 
+          legend = "none",
+          labels = c("a", "b", "c", "d", "e", ""),
+          font.label = list(size = 20, color = "black"))
 
 
 # PLOT DATASETS: Effect of rearing density on correlation between morphology metrics at and after metamorphosis -----------------------
 
 # create empty list to fill with morphometrics plot
-plotList.morph = vector(mode = "list", length = length(metrics))
+plotList.morph = vector(mode = "list", length = length(metrics[-1]))
 
 # fill plot list with each metric
 for(i in 2:length(metrics)){
-  plotList.morph[[i]] <- 
+  plotList.morph[[i-1]] <- 
     ggplot(data = morph.data.mm.juv[!is.na(morph.data.mm.juv$juv.tank.id),], aes(y=.data[[metrics[i]]], x = mass.g, color = treatment)) + 
-    geom_point(position=position_jitterdodge(), size = 2.5, alpha = 0.7) +
-    stat_summary(fun.y=mean, geom="line", size = 1.2, aes(color = treatment, group = treatment)) +
-    stat_summary(fun = mean,
-                 geom = "errorbar",
-                 fun.max = function(x) mean(x) + sd(x) / sqrt(length(x)), #plotting +1 se
-                 fun.min = function(x) mean(x) - sd(x) / sqrt(length(x)), #plotting -1 se
-                 width=0.07, size = 0.7, colour="black", alpha=0.7, aes(group = treatment)) +
-    stat_summary(fun.y=mean, geom="point", color = "black", pch=21, size=5, aes(fill=treatment)) +
+    facet_grid(rows = vars(post.mm.weeks)) +
+    geom_point(size = 2.5, alpha = 0.7) +
+    geom_smooth(method = "lm", se = TRUE) + #fit linear model with confidence interval
     scale_color_manual(values=c(natparks.pals("BryceCanyon")[-2])) +
     scale_fill_manual(values=c(natparks.pals("BryceCanyon")[-2])) +
     theme_bw() +
     theme(legend.title = element_blank(),
           legend.text = element_text(size=20),
-          axis.text.x=element_text(size=18, color = "black"), 
-          axis.text.y=element_text(size=18, color = "black"), 
-          axis.title.x=element_text(size=18, color = "black"), 
-          axis.title.y = element_text(size=18),
+          axis.text.x=element_text(size=12, color = "black"), 
+          axis.text.y=element_text(size=12, color = "black"), 
+          axis.title.x=element_text(size=12, color = "black"), 
+          axis.title.y = element_text(size=12),
           panel.grid.major = element_blank(), 
           panel.grid.minor = element_blank()) +
-    expand_limits(y = 0) +
     scale_y_continuous(name = yaxis.names[i]) +
-    scale_x_discrete(name = "mass (g)")
+    scale_x_continuous(name = "mass (g)")
 }
 
-# add the legend as the final plot within plot list so that it can be graphed within the grid
-plotList.morph[[length(plotList.morph) + 1]] <- as_ggplot(get_legend(plotList.morph))
-
 # create panel plot with all morphometrics data across all sampling points
-ggarrange(plotlist = plotList.morph, legend = "none")
+ggarrange(plotlist = plotList.morph,
+          common.legend = TRUE,
+          legend = "bottom",
+          labels = c("a", "b", "c", "d"),
+          font.label = list(size = 20, color = "black"))
 
 
 
@@ -286,7 +287,10 @@ for(i in 1:length(metrics)){
 plotList.morph[[length(plotList.morph) + 1]] <- as_ggplot(get_legend(plotList.morph))
 
 # create panel plot with all morphometrics data across all sampling points
-ggarrange(plotlist = plotList.morph, legend = "none")
+ggarrange(plotlist = plotList.morph, 
+          legend = "none",
+          labels = c("a", "b", "c", "d", "e", ""),
+          font.label = list(size = 20, color = "black"))
 
 
 # ANALYZE DATA: Effect of rearing density, larval duration on morphometrics at and after metamorphosis ---------------------
