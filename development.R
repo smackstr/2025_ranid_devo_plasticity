@@ -46,7 +46,7 @@ survi.data.tad$larv.tank.id = factor(survi.data.tad$larv.tank.id)
 survi.data.tad$prop.surv.forelimb = as.numeric(survi.data.tad$prop.surv.forelimb)
 
 # create unique tank id for survi.data.exp and devo.data
-survi.data.exp$unique.id = paste(survi.data.exp$gs.code, survi.data.exp$clutch, survi.data.exp$larv.tank.id, survi.data.exp$week, sep = "_")
+survi.data.exp$unique.id = paste(survi.data.exp$gs.code, survi.data.exp$clutch, survi.data.exp$larv.tank.id, sep = "_")
 devo.data$unique.id = paste(devo.data$gs.code, devo.data$clutch, devo.data$larv.tank.id, sep = "_")
 survi.data.tad$unique.id = paste(survi.data.tad$gs.code, survi.data.tad$clutch, survi.data.tad$larv.tank.id, survi.data.tad$week, sep = "_")
 
@@ -162,6 +162,7 @@ survi.data.tad.exp = rbind(survi.data.tad[ , c("week",
                                                "prop.survi",
                                                "prop.seed.forelimb",
                                                "prop.surv.forelimb",
+                                               "water.level.reduc",
                                                "unique.id")], 
                            survi.data.exp[ , c("week",
                                                "gs",
@@ -177,6 +178,7 @@ survi.data.tad.exp = rbind(survi.data.tad[ , c("week",
                                                "prop.survi",
                                                "prop.seed.forelimb",
                                                "prop.surv.forelimb",
+                                               "water.level.reduc",
                                                "unique.id")])
 
 #set up database to fill
@@ -258,6 +260,32 @@ rm(temp3)
 
 
 
+# ANALYZE DATA: Effect of water level reduction (yes/no) and rearing density on larval duration CALCULATED BY USING WATER LEVEL REDUCTION AS FIXED EFFECT ---------------------
+# model definition - REML set to FALSE because comparing models with different fixed effects using hypothesis test (likelihood ratio test). REML assumes that all fixed effects are the same in comparison models but ML does not. setting random effect as juvenile tank id nested within clutch because want to control for correlation within those groups but not necessarily interested in defining the effect of being in those groups.
+lmer.full <- lmer(days.forelimb ~ treatment + water.level.reduc + (1|clutch:larv.tank.id), data = devo.data[devo.data$first.six == "yes",], na.action = na.omit, REML = FALSE)
+lmer.notreat <- lmer(days.forelimb ~ water.level.reduc + (1|clutch:larv.tank.id), data = devo.data[devo.data$first.six == "yes",], na.action = na.omit, REML = FALSE)
+lmer.noreduc <- lmer(days.forelimb ~ treatment + (1|clutch:larv.tank.id), data = devo.data[devo.data$first.six == "yes",], na.action = na.omit, REML = FALSE)
+lmer.null<- lmer(days.forelimb ~ (1|clutch:larv.tank.id), data = devo.data[devo.data$first.six == "yes",], na.action = na.omit, REML = FALSE)
+lm.null <- lm(days.forelimb ~ treatment + water.reduc.lev, data = devo.data[devo.data$first.six == "yes",], na.action = na.omit, REML = FALSE)
+
+# model selection using likelihood ratio test
+anova(lmer.full, lmer.notreat, lmer.noreduc, lmer.null, test="Chisq")
+
+# checking whether random effect important to include
+anova(lmer.full, lm.null, test = "Chisq")
+
+# Check Model Assumptions
+check_model(lmer.full)
+
+# Final Model
+summary(lmer.full)
+Anova(lmer.full, type = "II") #gives information for each factor; should use type = "II" when interaction terms are NOT significant and thus not included in the final model; should use type = "III" when interaction terms are significant and thus included in the final model
+fixef(lmer.full)
+ranef(lmer.full)
+confint(lmer.full)
+get_variance(lmer.full)
+
+
 # ANALYZE DATA: Effect of rearing density and clutch:larval tank on larval duration ---------------------
 
 # model definition - REML set to FALSE because comparing models with different fixed effects using hypothesis test (likelihood ratio test). REML assumes that all fixed effects are the same in comparison models but ML does not. setting random effect as juvenile tank id nested within clutch because want to control for correlation within those groups but not necessarily interested in defining the effect of being in those groups.
@@ -313,7 +341,7 @@ confint(lmer.null)
 get_variance(lmer.null)
 
 
-# ANALYZE DATA: Effect of rearing density, larval duration, week, and larval tank id nested within clutch on likelihood of metamorphosing with forelimb emerged weekly and by end of experiment ---------------------
+# ANALYZE DATA: Effect of rearing density, week, and larval tank id nested within clutch on likelihood of metamorphosing with forelimb emerged weekly and by end of experiment ---------------------
 
 # model definition - setting random effect as juvenile tank id nested within clutch because want to control for correlation within those groups but not necessarily interested in defining the effect of being in those groups.
 cox.model.mixed.full <- coxme(Surv(status) ~ treatment + week + (1|clutch/larv.tank.id), data=survi.data.tad.exp.longform)
@@ -357,7 +385,42 @@ exp(confint(cox.model.mixed.full))
 VarCorr(cox.model.mixed.full)
 
 
-# ANALYZE DATA: Effect of rearing density, larval duration, week, and larv tank id nested within clutch on % metamorphosing individuals weekly up until metamorphosis ---------------------
+
+# ANALYZE DATA: Effect of rearing density, water level reduction, week, and larv tank id nested within clutch on % metamorphosing individuals weekly up until metamorphosis ---------------------
+
+# model definition - setting random effect as juvenile tank id nested within clutch because want to control for correlation within those groups but not necessarily interested in defining the effect of being in those groups. Subsetting weeks 1-12 to represent breadth of data we are collecting, but will likely change this once we get another set of morphometric results for weeks 14-16
+glmm.full <- glmer(metamorph.num.cumul/(seed.num-leth.samp.num.cumul) ~ treatment*week + water.level.reduc + (1|clutch:larv.tank.id), data=survi.data.tad.exp, na.action = na.omit, family = binomial, weights = (seed.num-leth.samp.num.cumul), control=glmerControl(optimizer="bobyqa",optCtrl=list(maxfun=2e5)))
+
+glmm.nointxn <- glmer(metamorph.num.cumul/(seed.num-leth.samp.num.cumul) ~ treatment + week + water.level.reduc + (1|clutch:larv.tank.id), data=survi.data.tad.exp, na.action = na.omit, family = binomial, weights = (seed.num-leth.samp.num.cumul))
+
+glmm.noweek <- glmer(metamorph.num.cumul/(seed.num-leth.samp.num.cumul) ~ treatment + water.level.reduc + (1|clutch:larv.tank.id), data=survi.data.tad.exp, na.action = na.omit, family = binomial, weights = (seed.num-leth.samp.num.cumul))
+
+glmm.notreat <- glmer(metamorph.num.cumul/(seed.num-leth.samp.num.cumul) ~ week + water.level.reduc + (1|clutch:larv.tank.id), data=survi.data.tad.exp, na.action = na.omit, family = binomial, weights = (seed.num-leth.samp.num.cumul))
+
+glmm.noreduc <- glmer(metamorph.num.cumul/(seed.num-leth.samp.num.cumul) ~ treatment + week + (1|clutch:larv.tank.id), data=survi.data.tad.exp, na.action = na.omit, family = binomial, weights = (seed.num-leth.samp.num.cumul))
+
+glmm.null <- glmer(metamorph.num.cumul/(seed.num-leth.samp.num.cumul) ~ (1|clutch:larv.tank.id), data=survi.data.tad.exp, na.action = na.omit, family = binomial, weights = (seed.num-leth.samp.num.cumul))
+
+glm.full <- glm(metamorph.num.cumul/(seed.num-leth.samp.num.cumul) ~ treatment*week + water.level.reduc, data=survi.data.tad.exp, na.action = na.omit, family = binomial, weights = (seed.num-leth.samp.num.cumul))
+
+
+# model selection using likelihood ratio test; higher negative log-lik (closer to 0) provides better fit to the data 
+anova(glmm.full, glmm.nointxn, glmm.noweek, glmm.notreat, glmm.noreduc, glmm.null, test="Chisq")
+
+# check if random effect significant - if model without the random effect is not significantly different than model with the random effect, then random effect isn't explaining the variance much. Even if not significant, should include in final model to more accurately account for covariance. higher negative log-lik (closer to 0) provides better fit to the data 
+anova(glmm.full, glm.full, test="Chisq") 
+
+# Final Model
+Anova(glmm.full, type = "III") #gives information for each factor; should use type = "II" when interaction terms are NOT significant and thus not included in the final model; should use type = "III" when interaction terms are significant and thus included in the final model
+summary(glmm.full)
+exp(fixef(glmm.full)) #returns odds ratios instead of logit scale
+exp(confint(glmm.full)) #returns odds ratios instead of logit scale
+ranef(glmm.full)
+VarCorr(glmm.full)
+
+
+
+# ANALYZE DATA: Effect of rearing density, week, and larv tank id nested within clutch on % metamorphosing individuals weekly up until metamorphosis ---------------------
 
 # model definition - setting random effect as juvenile tank id nested within clutch because want to control for correlation within those groups but not necessarily interested in defining the effect of being in those groups. Subsetting weeks 1-12 to represent breadth of data we are collecting, but will likely change this once we get another set of morphometric results for weeks 14-16
 glmm.full <- glmer(metamorph.num.cumul/(seed.num-leth.samp.num.cumul) ~ treatment*week + (1|clutch:larv.tank.id), data=survi.data.tad.exp, na.action = na.omit, family = binomial, weights = (seed.num-leth.samp.num.cumul))
@@ -389,7 +452,7 @@ VarCorr(glmm.full)
 
 
 
-# ANALYZE DATA: Effect of rearing density, larval duration, week, and larv tank id nested within clutch on % metamorphosing individuals CALCULATED ONLY FROM SURVIVING INDIVIDUALS weekly up until metamorphosis ---------------------
+# ANALYZE DATA: Effect of rearing density, week, and larv tank id nested within clutch on % metamorphosing individuals CALCULATED ONLY FROM SURVIVING INDIVIDUALS weekly up until metamorphosis ---------------------
 
 # model definition - setting one random effect as week and one random effect as juvenile tank id nested within clutch because want to control for correlation within those groups but not necessarily interested in defining the effect of being in those groups. Subsetting weeks 1-12 to represent breadth of data we are collecting, but will likely change this once we get another set of morphometric results for weeks 14-16
 glmm.full <- glmer(metamorph.num.cumul/(photo.num+metamorph.num.cumul) ~ treatment*week + (1|clutch:larv.tank.id), data=survi.data.tad.exp, na.action = na.omit, family = binomial, weights = (photo.num+metamorph.num.cumul))
@@ -419,6 +482,26 @@ exp(confint(glmm.full)) #returns odds ratios instead of logit scale
 ranef(glmm.full)
 VarCorr(glmm.full)
 
+
+# PLOT DATASETS: Effect of water level reduction on larval duration -----------------------
+
+# plotted with clutch separated under each density group 
+ggplot(data = devo.data[devo.data$treatment != "overflow" & devo.data$first.six == "yes",], aes(y=days.forelimb, x = water.level.reduc, color = treatment)) + 
+  geom_point(position=position_jitterdodge(), size = 2.5, alpha = 0.7) +
+  geom_boxplot(alpha = 0.75, size = 0.75, show.legend = FALSE) +
+  scale_color_manual(values=c(natparks.pals("BryceCanyon")[-2])) +
+  scale_fill_manual(values=c(natparks.pals("BryceCanyon")[-2])) +
+  theme_bw() +
+  theme(legend.title = element_blank(),
+        legend.text = element_text(size=20),
+        axis.text.x = element_text(size=16, color = "black"), 
+        axis.text.y=element_text(size=16, color = "black"), 
+        axis.title.x = element_text(size=16),
+        axis.title.y = element_text(size=16),
+        panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank()) +
+  scale_y_continuous(name = "larval duration (days)") +
+  scale_x_discrete(name = "was water level reduced?")
 
 
 
@@ -547,6 +630,34 @@ survi.data.exp.summ = survi.data.exp %>%
   group_by(treatment) %>%
   summarise(num.seeded = sum(seed.num - leth.samp.num, na.rm = TRUE), 
             num.survi = sum(larv.num + metamorph.num.cumul, na.rm = TRUE),
+            num.metamorph = sum(metamorph.num.cumul, na.rm = TRUE),
+            mean.metamorph = round(mean(metamorph.num.cumul, na.rm = TRUE), 2),
+            sd.metamorph = round(sd(metamorph.num.cumul, na.rm = TRUE), 2),
+            mean.prop.seeded = round(mean(prop.seed.forelimb, na.rm = TRUE), 3),
+            sd.prop.seeded = round(sd(prop.seed.forelimb, na.rm = TRUE), 3),
+            mean.prop.survi = round(mean(prop.surv.forelimb, na.rm = TRUE), 3),
+            sd.prop.survi = round(sd(prop.surv.forelimb, na.rm = TRUE), 3)
+  )
+
+
+# SUMMARY TABLES: Developmental metrics with water level reduction included ---------------------
+
+devo.data.summ = devo.data %>%
+  group_by(treatment, water.level.reduc) %>%
+  filter(first.six == "yes" & is.na(juv.tank.id)==FALSE) %>%
+  summarise(mean.days.forelimb = round(mean(days.forelimb, na.rm = TRUE), 2),
+            sd.days.forelimb = round(sd(days.forelimb, na.rm = TRUE), 2),
+            min.days.forelimb = round(min(days.forelimb, na.rm = TRUE), 2),
+            max.days.forelimb = round(max(days.forelimb, na.rm = TRUE), 2),
+            range.days.forelimb = round(max(days.forelimb, na.rm = TRUE), 2) - round(min(days.forelimb, na.rm = TRUE), 2),
+            mean.days.completion = round(mean(days.forelimb.tail, na.rm = TRUE), 2),
+            sd.days.completion = round(sd(days.forelimb.tail, na.rm = TRUE), 2)
+  )
+
+survi.data.exp.summ = survi.data.exp %>%
+  group_by(treatment, water.level.reduc) %>%
+  summarise(num.seeded = sum(seed.num - leth.samp.num.cumul, na.rm = TRUE), 
+            num.survi = sum(photo.num + metamorph.num.cumul, na.rm = TRUE),
             num.metamorph = sum(metamorph.num.cumul, na.rm = TRUE),
             mean.metamorph = round(mean(metamorph.num.cumul, na.rm = TRUE), 2),
             sd.metamorph = round(sd(metamorph.num.cumul, na.rm = TRUE), 2),

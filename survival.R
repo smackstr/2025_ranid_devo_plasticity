@@ -83,6 +83,7 @@ survi.data.tad.exp = rbind(survi.data.tad[ , c("week",
                                                "prop.survi",
                                                "prop.seed.forelimb",
                                                "prop.surv.forelimb",
+                                               "water.level.reduc",
                                                "unique.id")], 
                            survi.data.exp[ , c("week",
                                                "gs",
@@ -98,10 +99,11 @@ survi.data.tad.exp = rbind(survi.data.tad[ , c("week",
                                                "prop.survi",
                                                "prop.seed.forelimb",
                                                "prop.surv.forelimb",
+                                               "water.level.reduc",
                                                "unique.id")])
 
 # create unique tank id for newly created survi.data.tad.exp
-survi.data.tad.exp$unique.id = paste(survi.data.tad.exp$gs.code, survi.data.tad.exp$larv.tank.id, survi.data.tad.exp$week, sep = "_")
+survi.data.tad.exp$unique.id = paste(survi.data.tad.exp$gs.code, survi.data.tad.exp$clutch, survi.data.tad.exp$larv.tank.id, sep = "_")
 
 
 # COMPILE DATASETS: Add Developmental Data (mean days to forelimb) to survi.data.tad.exp -----------------------
@@ -221,6 +223,40 @@ for(i in 2:length(unique(survi.data.juv$unique.id.wk))){
 }
 survi.data.juv.longform = temp3
 rm(temp3)
+
+
+# ANALYZE DATA: Effect of water level reduction (yes/no) on larval duration ---------------------
+# model definition - REML set to FALSE because comparing models with different fixed effects using hypothesis test (likelihood ratio test). REML assumes that all fixed effects are the same in comparison models but ML does not. setting random effect as juvenile tank id nested within clutch because want to control for correlation within those groups but not necessarily interested in defining the effect of being in those groups.
+
+# model definition - setting one random effect as larval tank id nested within clutch because want to control for correlation within those groups but not necessarily interested in defining the effect of being in those groups.
+glmm.full <- glmer(photo.num/(seed.num-leth.samp.num.cumul) ~ treatment*week + water.level.reduc + (1|clutch:larv.tank.id), data=survi.data.tad.exp, na.action = na.omit, family = binomial, weights = (seed.num-leth.samp.num.cumul))
+
+glmm.nointxn <- glmer(photo.num/(seed.num-leth.samp.num.cumul) ~ treatment + week + water.level.reduc + (1|clutch:larv.tank.id), data=survi.data.tad.exp, na.action = na.omit, family = binomial, weights = (seed.num-leth.samp.num.cumul))
+
+glmm.notreat <- glmer(photo.num/(seed.num-leth.samp.num.cumul) ~ week + water.level.reduc + (1|clutch:larv.tank.id), data=survi.data.tad.exp, na.action = na.omit, family = binomial, weights = (seed.num-leth.samp.num.cumul))
+
+glmm.noweek <- glmer(photo.num/(seed.num-leth.samp.num.cumul) ~ treatment + water.level.reduc + (1|clutch:larv.tank.id), data=survi.data.tad.exp, na.action = na.omit, family = binomial, weights = (seed.num-leth.samp.num.cumul))
+
+glmm.noreduc <- glmer(photo.num/(seed.num-leth.samp.num.cumul) ~ treatment + week + (1|clutch:larv.tank.id), data=survi.data.tad.exp, na.action = na.omit, family = binomial, weights = (seed.num-leth.samp.num.cumul))
+
+glmm.null <- glmer(photo.num/(seed.num-leth.samp.num.cumul) ~ (1|clutch:larv.tank.id), data=survi.data.tad.exp, na.action = na.omit, family = binomial, weights = (seed.num-leth.samp.num.cumul))
+
+glm.full <- glm(photo.num/(seed.num-leth.samp.num.cumul) ~ treatment + week + water.level.reduc, data=survi.data.tad.exp, na.action = na.omit, family = binomial, weights = (seed.num-leth.samp.num.cumul))
+
+
+# model selection using likelihood ratio test; higher negative log-lik (closer to 0) provides better fit to the data 
+anova(glmm.nointxn, glmm.notreat, glmm.noweek, glmm.noreduc, glmm.null, test="Chisq")
+
+# check if random effect significant - if model without the random effect is not significantly different than model with the random effect, then random effect isn't explaining the variance much. Even if not significant, should include in final model to more accurately account for covariance. higher negative log-lik (closer to 0) provides better fit to the data 
+anova(glmm.nointxn, glm.full, test="Chisq") 
+
+# Final Model
+Anova(glmm.nointxn, type = "II") #gives information for each factor; should use type = "II" when interaction terms are NOT significant and thus not included in the final model; should use type = "III" when interaction terms are significant and thus included in the final model
+summary(glmm.nointxn)
+exp(fixef(glmm.nointxn)) #returns odds ratis instead of logit scale
+exp(confint(glmm.nointxn)) #returns odds ratis instead of logit scale
+ranef(glmm.nointxn)
+VarCorr(glmm.nointxn)
 
 
 # ANALYZE DATA: Cox Proportional Hazard Model - Effect of rearing density, week, and larv tank id nested within clutch on likelihood of survival weekly and by close-out of tanks ---------------------
@@ -385,6 +421,37 @@ new.dataframe = new.dataframe[which(new.dataframe$unique.id %in% unique(row.name
 
 #add predictions using model
 new.dataframe$predict.mod1 = predict(glmm.nointxn, type = "response", newdata = new.dataframe)
+
+
+# PLOT DATASETS: Effect of water level reduction on survival before and at metamorphosis -----------------------
+# x-y plot with summarized mean and +/- 1 se for all metrics
+
+# percent survival from tank seeding to tank close-out without clutch included
+ggplot(data = survi.data.tad.exp, aes(y=prop.survi*100, x = week, color = water.level.reduc)) + 
+  geom_point(position=position_jitterdodge(), size = 2.5, alpha = 0.7) + 
+  facet_grid(rows = vars(treatment)) +
+  stat_summary(fun.y=mean, geom="line", size = 1.2, aes(color = water.level.reduc, group = water.level.reduc), show.legend = FALSE) + #show.legend is FALSE so that won't show up on panel plot later
+  stat_summary(fun = mean,
+               geom = "errorbar",
+               fun.max = function(x) mean(x) + sd(x) / sqrt(length(x)), #plotting +1 se
+               fun.min = function(x) mean(x) - sd(x) / sqrt(length(x)), #plotting -1 se
+               width=0.07, size = 0.7, colour="black", alpha=0.7, aes(group = water.level.reduc)) +
+  stat_summary(fun.y=mean, geom="point", color = "black", pch=21, size=5, aes(fill=water.level.reduc), show.legend = FALSE) + #show.legend is FALSE so that won't show up on panel plot later
+  scale_color_manual(values=c(natparks.pals("BryceCanyon")[-2])) +
+  scale_fill_manual(values=c(natparks.pals("BryceCanyon")[-2])) +
+  theme_bw() +
+  theme(legend.title = element_blank(),
+        legend.text = element_text(size=20),
+        axis.text.x=element_text(size=12, color = "black"), 
+        axis.text.y=element_text(size=12, color = "black"), 
+        axis.title.x=element_text(size=12, color = "black"), 
+        axis.title.y = element_text(size=12),
+        panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank()) +
+  #expand_limits(y = 0) +
+  scale_y_continuous(name = "percent survived") +
+  scale_x_continuous(name = "pre-metamorphic age (weeks)", breaks = seq(1, 11, by = 1))
+
 
 # PLOT DATASETS: Effect of rearing density on survival before, at, and after metamorphosis -----------------------
 # x-y plot with summarized mean and +/- 1 se for all metrics

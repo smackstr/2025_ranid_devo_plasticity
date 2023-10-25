@@ -144,7 +144,41 @@ morph.data.mm.juv <- rbind(morph.data.mm[ , c("date.measured",
                                              "mean.days.forelimb")])
 
 
-# ANALYZE DATA: Effect of rearing density, treatment, and larval duration on mass at and after metamorphosis ---------------------
+# ANALYZE DATA: Effect of rearing density, water level reduction, and larval duration on mass at metamorphosis ---------------------
+
+# model definition - using glmer with log-link function to keep mass in original units.
+
+glmer.full <- glmer(mass.g ~ treatment + water.level.reduc + scale(mean.days.forelimb) + (1|clutch:larv.tank.id), data = na.omit(morph.data.mm), na.action = na.omit, family = gaussian(link = 'log'), control=glmerControl(optimizer="bobyqa",optCtrl=list(maxfun=2e5)))
+
+glmer.notreat <- glmer(mass.g ~ water.level.reduc + scale(mean.days.forelimb) + (1|clutch:larv.tank.id), data = na.omit(morph.data.mm), na.action = na.omit, family = gaussian(link = 'log')) 
+
+glmer.noreduc <- glmer(mass.g ~ treatment + scale(mean.days.forelimb) + (1|clutch:larv.tank.id), data = na.omit(morph.data.mm), na.action = na.omit, family = gaussian(link = 'log'), control=glmerControl(optimizer="bobyqa",optCtrl=list(maxfun=2e5)))
+
+glmer.nodays <- glmer(mass.g ~ treatment + water.level.reduc + (1|clutch:larv.tank.id), data = na.omit(morph.data.mm), na.action = na.omit, family = gaussian(link = 'log'), control=glmerControl(optimizer="bobyqa",optCtrl=list(maxfun=2e5)))
+
+glmer.null<- glmer(mass.g ~ (1|clutch:juv.tank.id), data = na.omit(morph.data.mm), na.action = na.omit, family = gaussian(link = 'log'))
+
+glm.full<- glm(mass.g ~ treatment + water.level.reduc + scale(mean.days.forelimb), data = na.omit(morph.data.mm), na.action = na.omit, family = gaussian(link = 'log'))
+
+# model selection using likelihood ratio test
+anova(glmer.full, glmer.notreat, glmer.noreduc, glmer.nodays, glmer.null, test="Chisq")
+
+# check if random effect significant - if model without the random effect is not significantly different than model with the random effect, then random effect isn't explaining the variance much. Even if not significant, should include in final model to more accurately account for covariance. higher |AIC| provides better fit to the data. 
+anova(glmer.full, glm.full, test = "Chisq")
+
+# Check Model Assumptions
+check_model(glmer.full)
+
+# Final Model
+Anova(glmer.full, type = "II") #gives information for each factor; should use type = "II" when interaction terms are NOT significant and thus not included in the final model; should use type = "III" when interaction terms are significant and thus included in the final model
+summary(glmer.full)
+as.data.frame(exp(fixef(glmer.full))) #exponentiate the coefficient because log-transformed the response variable of mass. This gives the multiplicative factor for every one-unit increase in the independent variable.
+ranef(glmer.full)
+confint(glmer.full)
+
+
+
+# ANALYZE DATA: Effect of rearing density and larval duration on mass at and after metamorphosis ---------------------
 
 # model definition - using glmer with log-link function to keep mass in original units.
 
