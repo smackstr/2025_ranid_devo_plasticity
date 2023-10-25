@@ -192,7 +192,7 @@ glmer.notreat <- glmer(mass.g ~ scale(mean.days.forelimb) + post.mm.weeks + (1|c
 
 glmer.noweeks <- glmer(mass.g ~ treatment + scale(mean.days.forelimb) + (1|clutch:juv.tank.id), data = na.omit(morph.data.mm.juv), na.action = na.omit, family = gaussian(link = 'log')) 
 
-glmer.null<- glmer(mass.g ~ (1|post.mm.weeks) + (1|clutch:juv.tank.id), data = na.omit(morph.data.mm.juv), na.action = na.omit, family = gaussian(link = 'log'))
+glmer.null<- glmer(mass.g ~ (1|clutch:juv.tank.id), data = na.omit(morph.data.mm.juv), na.action = na.omit, family = gaussian(link = 'log'))
 
 glm.full<- glm(mass.g ~ treatment + scale(mean.days.forelimb)*post.mm.weeks, data = na.omit(morph.data.mm.juv), na.action = na.omit, family = gaussian(link = 'log'))
 
