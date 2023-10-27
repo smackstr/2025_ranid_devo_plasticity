@@ -50,13 +50,16 @@ devo.data$juv.tank.id = factor(devo.data$juv.tank.id)
 morph.data.mm$post.mm.weeks = factor(morph.data.mm$post.mm.weeks, levels = c("0"))
 morph.data.juv$post.mm.weeks = factor(morph.data.juv$post.mm.weeks, levels = c("1-2", "4-6", "5-7", "8-10", "11-12", "12-14", "16-18"))
 
+# remove rows for NA tanks and rename extra tanks
+morph.data.juv = morph.data.juv[is.na(morph.data.juv$juv.tank.id) == FALSE,]
+morph.data.juv$juv.tank.id[morph.data.juv$juv.tank.id == "J002extra"] = "J002"
+morph.data.juv$juv.tank.id[morph.data.juv$juv.tank.id == "J003extra"] = "J003"
+morph.data.juv$juv.tank.id[morph.data.juv$juv.tank.id == "J005extra"] = "J005"
+
 # create unique tank id for all datasets
 morph.data.mm$unique.id = paste(morph.data.mm$gs.code, morph.data.mm$clutch, morph.data.mm$juv.tank.id, sep = "_")
 
 # need to change juvenile tanks with "extra" in their name to be just the name of the tank
-morph.data.juv$juv.tank.id[morph.data.juv$juv.tank.id == "J002extra"] = "J002"
-morph.data.juv$juv.tank.id[morph.data.juv$juv.tank.id == "J003extra"] = "J003"
-morph.data.juv$juv.tank.id[morph.data.juv$juv.tank.id == "J005extra"] = "J005"
 morph.data.juv$unique.id = paste(morph.data.juv$gs.code, morph.data.juv$clutch, morph.data.juv$juv.tank.id, sep = "_")
 
 devo.data$unique.id = paste(devo.data$gs.code, devo.data$clutch, devo.data$larv.tank.id, sep = "_")
@@ -69,34 +72,6 @@ devo.data$unique.id.indiv = paste(devo.data$gs.code, devo.data$clutch, devo.data
 # remove all but first six individuals from devo.data so that only those individuals are used to compute the mean
 devo.data = devo.data[devo.data$first.six == "yes" & is.na(devo.data$first.six)==FALSE,]
 
-# COMPILE DATASETS: Add Developmental Data (mean days to forelimb) to morph.data.juv -----------------------
-
-# remove overflow individuals
-morph.data.juv = morph.data.juv[morph.data.juv$treatment != "overflow",]
-
-# create column to store the developmental data
-morph.data.juv$mean.days.forelimb = NA
-
-# fill developmental data column - average mean.days.forelimb for each juvenile tank
-for(i in 1:length(unique(morph.data.juv$unique.id))){
-  morph.data.juv$mean.days.forelimb[morph.data.juv$unique.id == unique(morph.data.juv$unique.id)[i]] <- mean(devo.data$days.forelimb[devo.data$unique.id.juv ==  unique(morph.data.juv$unique.id)[i]], na.rm = TRUE)
-}
-
-
-# COMPILE DATASETS: Add Developmental Data (mean days to forelimb) to morph.data.mm -----------------------
-
-# remove overflow individuals and all but first six individuals
-morph.data.mm = morph.data.mm[morph.data.mm$treatment != "overflow",]
-morph.data.mm = morph.data.mm[morph.data.mm$first.six == "yes",]
-
-# create column to store the developmental data, mean.days.forelimb represents days.forelimb for each individual (rather than an average, since we actually have individual level data for this) but need to keep column name the same as in the juvenile dataset so we can combine them in the next step
-morph.data.mm$mean.days.forelimb = NA
-
-# fill developmental data column
-for(i in 1:length(unique(morph.data.mm$unique.id.indiv))){
-  morph.data.mm$mean.days.forelimb[morph.data.mm$unique.id.indiv == unique(morph.data.mm$unique.id.indiv)[i]] <- devo.data$days.forelimb[devo.data$unique.id.indiv ==  unique(morph.data.mm$unique.id.indiv)[i]]
-}
-
 
 # COMPILE DATASETS: Remove double-sampled individuals morph.data.juv  -----------------------
 # some weeks had an individual measured twice - for example, if the individual was measured for both morphometrics and ephys, but only one of these should be considered since it's a repeat measure on an (unknown) individual
@@ -104,6 +79,7 @@ for(i in 1:length(unique(morph.data.mm$unique.id.indiv))){
 # only graph certain weeks (0, 1-2, 4-6, 8-10, 12-14) and when individual not measured twice within that week
 morph.data.juv = morph.data.juv[morph.data.juv$post.mm.weeks != "5-7" & morph.data.juv$post.mm.weeks != "11-12",]
 morph.data.juv = morph.data.juv[morph.data.juv$repeat.measure == "no",]
+
 
 # COMPILE DATASETS: Combine morph.data.mm and morph.data.juv  -----------------------
 morph.data.mm.juv <- rbind(morph.data.mm[ , c("date.measured",
@@ -122,8 +98,7 @@ morph.data.mm.juv <- rbind(morph.data.mm[ , c("date.measured",
                                               "r.tibia.mm",
                                              "r.thigh.mm",
                                              "notes.collection",
-                                             "unique.id",
-                                             "mean.days.forelimb")], 
+                                             "unique.id")], 
                            morph.data.juv[, c("date.measured",
                                              "age.weeks",
                                              "post.mm.weeks",
@@ -140,15 +115,44 @@ morph.data.mm.juv <- rbind(morph.data.mm[ , c("date.measured",
                                              "r.tibia.mm",
                                              "r.thigh.mm",
                                              "notes.collection",
-                                             "unique.id",
-                                             "mean.days.forelimb")])
+                                             "unique.id")])
+
+
+# COMPILE DATASETS: Add Developmental Data (mean days to forelimb) to morph.data.juv -----------------------
+
+# remove overflow individuals and any NAs that have been introduced
+morph.data.mm.juv = morph.data.mm.juv[morph.data.mm.juv$treatment != "overflow",]
+morph.data.mm.juv = morph.data.mm.juv[is.na(morph.data.mm.juv$juv.tank.id) == FALSE,]
+
+# create column to store the developmental data
+morph.data.mm.juv$mean.days.forelimb = NA
+
+# fill developmental data column - average mean.days.forelimb for each juvenile tank
+for(i in 1:length(unique(morph.data.mm.juv$unique.id))){
+  morph.data.mm.juv$mean.days.forelimb[morph.data.mm.juv$unique.id == unique(morph.data.mm.juv$unique.id)[i]] <- mean(devo.data$days.forelimb[devo.data$unique.id.juv ==  unique(morph.data.mm.juv$unique.id)[i]], na.rm = TRUE)
+}
+
+# create column to store categorical developmental data (i.e. early, mid, late developers)
+morph.data.mm.juv$devo.cat = NA
+
+for(i in 1:length(unique(morph.data.mm.juv$unique.id))){
+  
+  if(morph.data.mm.juv$mean.days.forelimb[morph.data.mm.juv$unique.id == unique(morph.data.mm.juv$unique.id)[i]][1] <= mean(morph.data.juv$mean.days.forelimb, na.rm = TRUE) - sd(morph.data.juv$mean.days.forelimb, na.rm = TRUE)){
+    morph.data.mm.juv$devo.cat[morph.data.mm.juv$unique.id == unique(morph.data.mm.juv$unique.id)[i]] = "early"
+  }
+  
+  if(morph.data.mm.juv$mean.days.forelimb[morph.data.mm.juv$unique.id == unique(morph.data.mm.juv$unique.id)[i]][1] >= mean(morph.data.juv$mean.days.forelimb, na.rm = TRUE) + sd(morph.data.juv$mean.days.forelimb, na.rm = TRUE)){
+    morph.data.mm.juv$devo.cat[morph.data.mm.juv$unique.id == unique(morph.data.mm.juv$unique.id)[i]] = "late"
+  }
+}
+morph.data.mm.juv$devo.cat[is.na(morph.data.mm.juv$devo.cat) == TRUE] = "mid"
 
 
 # ANALYZE DATA: Effect of rearing density, water level reduction, and larval duration on mass at metamorphosis ---------------------
 
 # model definition - using glmer with log-link function to keep mass in original units.
 
-glmer.full <- glmer(mass.g ~ treatment + water.level.reduc + scale(mean.days.forelimb) + (1|clutch:larv.tank.id), data = na.omit(morph.data.mm), na.action = na.omit, family = gaussian(link = 'log'), control=glmerControl(optimizer="bobyqa",optCtrl=list(maxfun=2e5)))
+glmer.full <- glmer(mass.g ~ treatment + scale(mean.days.forelimb) + (1|clutch:larv.tank.id), data = na.omit(morph.data.mm), na.action = na.omit, family = gaussian(link = 'log'), control=glmerControl(optimizer="bobyqa",optCtrl=list(maxfun=2e5)))
 
 glmer.notreat <- glmer(mass.g ~ water.level.reduc + scale(mean.days.forelimb) + (1|clutch:larv.tank.id), data = na.omit(morph.data.mm), na.action = na.omit, family = gaussian(link = 'log')) 
 
@@ -175,7 +179,6 @@ summary(glmer.full)
 as.data.frame(exp(fixef(glmer.full))) #exponentiate the coefficient because log-transformed the response variable of mass. This gives the multiplicative factor for every one-unit increase in the independent variable.
 ranef(glmer.full)
 confint(glmer.full)
-
 
 
 # ANALYZE DATA: Effect of rearing density and larval duration on mass at and after metamorphosis ---------------------
@@ -214,6 +217,66 @@ confint(glmer.full)
 
 #if interaction significant and fixed effect not...
 #mean.days.forelimb doesn't have an effect on its own (unlike week) but it does have an effect for later weeks
+
+
+
+# ANALYZE DATA: Effect of rearing density and larval duration on mass at and aftermetamorphosis BUT NOW USING CATEGORY FOR LARVAL DURATION ---------------------
+#turn weeks into continuous rather than factored data
+morph.data.mm.juv$post.mm.weeks.num = NA
+morph.data.mm.juv$post.mm.weeks.num[morph.data.mm.juv$post.mm.weeks == "1-2"] = mean(1,2)
+morph.data.mm.juv$post.mm.weeks.num[morph.data.mm.juv$post.mm.weeks == "4-6"] = mean(4,6)
+morph.data.mm.juv$post.mm.weeks.num[morph.data.mm.juv$post.mm.weeks == "8-10"] = mean(8,10)
+morph.data.mm.juv$post.mm.weeks.num[morph.data.mm.juv$post.mm.weeks == "12-14"] = mean(12,14)
+morph.data.mm.juv$post.mm.weeks.num[morph.data.mm.juv$post.mm.weeks == "16-18"] = mean(16,18)
+morph.data.mm.juv$post.mm.weeks.num[morph.data.mm.juv$post.mm.weeks == "0"] = 0
+morph.data.mm.juv$post.mm.weeks.num = as.numeric(morph.data.mm.juv$post.mm.weeks.num)
+
+# model definition - using glmer with log-link function to keep mass in original units.
+
+glmer.full <- glmer(mass.g ~ treatment + devo.cat*post.mm.weeks.num + (1|clutch:juv.tank.id), data = na.omit(morph.data.mm.juv), na.action = na.omit, family = gaussian(link = 'log'), control=glmerControl(optimizer="bobyqa",optCtrl=list(maxfun=2e5)))
+
+glmer.nointxn <- glmer(mass.g ~ treatment + devo.cat + post.mm.weeks.num + (1|clutch:juv.tank.id), data = na.omit(morph.data.mm.juv), na.action = na.omit, family = gaussian(link = 'log'), control=glmerControl(optimizer="bobyqa",optCtrl=list(maxfun=2e5)))
+
+glmer.notreat <- glmer(mass.g ~ devo.cat + post.mm.weeks.num+ (1|clutch:juv.tank.id), data = na.omit(morph.data.mm.juv), na.action = na.omit, family = gaussian(link = 'log')) 
+
+glmer.noweeks <- glmer(mass.g ~ treatment + devo.cat + (1|clutch:juv.tank.id), data = na.omit(morph.data.mm.juv), na.action = na.omit, family = gaussian(link = 'log'), control=glmerControl(optimizer="bobyqa",optCtrl=list(maxfun=2e5)))
+
+glmer.nodevo <- glmer(mass.g ~ treatment + post.mm.weeks.num + (1|clutch:juv.tank.id), data = na.omit(morph.data.mm.juv), na.action = na.omit, family = gaussian(link = 'log'), control=glmerControl(optimizer="bobyqa",optCtrl=list(maxfun=2e5)))
+
+glmer.null<- glmer(mass.g ~ (1|clutch:juv.tank.id), data = na.omit(morph.data.mm.juv), na.action = na.omit, family = gaussian(link = 'log'))
+
+glm.full<- glm(mass.g ~ treatment + devo.cat + post.mm.weeks.num, data = na.omit(morph.data.mm.juv), na.action = na.omit, family = gaussian(link = 'log'))
+
+# model selection using likelihood ratio test
+anova(glmer.full, glmer.nointxn, glmer.notreat, glmer.noweeks, glmer.nodevo, glmer.null, test="Chisq")
+
+# check if random effect significant - if model without the random effect is not significantly different than model with the random effect, then random effect isn't explaining the variance much. Even if not significant, should include in final model to more accurately account for covariance. higher |AIC| provides better fit to the data. 
+anova(glmer.full, glm.full, test = "Chisq")
+
+# Check Model Assumptions
+check_model(glmer.full)
+
+# Final Model
+Anova(glmer.full, type = "III") #gives information for each factor; should use type = "II" when interaction terms are NOT significant and thus not included in the final model; should use type = "III" when interaction terms are significant and thus included in the final model
+summary(glmer.full)
+as.data.frame(exp(fixef(glmer.full))) #exponentiate the coefficient because log-transformed the response variable of mass. This gives the multiplicative factor for every one-unit increase in the independent variable.
+ranef(glmer.full)
+confint(glmer.full)
+
+# create dataframe of predicted values that can be plotted on ggplot later
+new.dataframe = expand.grid(mass.g = seq(from = min(morph.data.mm.juv$mass.g, na.rm = TRUE), to = max(morph.data.mm.juv$mass.g, na.rm = TRUE), by = 0.01),
+                            treatment = c("low density", "high density"),
+                            clutch = c("A", "B", "C"),
+                            devo.cat = c("early", "mid", "late"),
+                            juv.tank.id = unique(morph.data.mm.juv$juv.tank.id),
+                            post.mm.weeks.num =  seq(from = 1, to = 16, by = 1))
+new.dataframe$unique.id = paste(new.dataframe$clutch, new.dataframe$juv.tank.id, sep = ":")
+
+# remove random effect ids that don't exist in the model
+new.dataframe = new.dataframe[which(new.dataframe$unique.id %in% unique(row.names(ranef(glmer.full)$"clutch:juv.tank.id")) == TRUE),]
+
+#add predictions using model
+new.dataframe$predict.mod1 = predict(glmer.full, type = "response", newdata = new.dataframe)
 
 
 # ANALYZE DATA: Effect of rearing density, treatment, and larval duration on snout-vent length at and after metamorphosis ---------------------
@@ -381,6 +444,33 @@ ggarrange(plotlist = plotList.morph[c(1,2)],
           labels = c("a", "b", "c", "d", "e", ""),
           font.label = list(size = 20, color = "black"))
 
+
+plot.morph1 <- ggplot(data = morph.data.mm.juv[!is.na(morph.data.mm.juv$juv.tank.id),], aes(y=mass.g, x = post.mm.weeks, color = treatment)) + 
+  geom_point(position=position_jitterdodge(), size = 2.5, alpha = 0.7) +
+  stat_summary(fun.y=mean, geom="line", size = 1.2, aes(color = treatment, group = treatment)) +
+  stat_summary(fun = mean,
+               geom = "errorbar",
+               fun.max = function(x) mean(x) + sd(x) / sqrt(length(x)), #plotting +1 se
+               fun.min = function(x) mean(x) - sd(x) / sqrt(length(x)), #plotting -1 se
+               width=0.07, size = 0.7, colour="black", alpha=0.7, aes(group = treatment)) +
+  stat_summary(fun.y=mean, geom="point", color = "black", pch=21, size=5, aes(fill=treatment)) +
+  scale_color_manual(values=c(natparks.pals("BryceCanyon")[-2])) +
+  scale_fill_manual(values=c(natparks.pals("BryceCanyon")[-2])) +
+  theme_bw() +
+  theme(legend.position = c(0.02, 0.98),
+        legend.justification = c("left", "top"),
+        legend.title = element_blank(),
+        legend.text = element_text(size=10),
+        axis.text.x=element_text(size=12, color = "black"), 
+        axis.text.y=element_text(size=12, color = "black"), 
+        axis.title.x=element_text(size=12, color = "black"), 
+        axis.title.y = element_text(size=12),
+        panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank()) +
+  scale_y_continuous(name = "mass (g)") +
+  scale_x_discrete(name = "post-metamorphic age (weeks)")
+
+
 # create panel plot with all other morphometrics data (not mass or svl) across all sampling points
 ggarrange(plotlist = plotList.morph[c(3,4,5)], 
           ncol = 1,
@@ -497,6 +587,40 @@ ggarrange(plotlist = plotList.morph,
 ggarrange(plotlist = plotList.morph[1:2],
           common.legend = TRUE,
           legend = "bottom",
+          labels = c("a", "b"),
+          font.label = list(size = 20, color = "black"))
+
+plot.morph2 <- ggplot() + 
+  geom_point(size = 2.5, alpha = 0.7, data = morph.data.mm.juv[!is.na(morph.data.mm.juv$juv.tank.id),], aes(y=mass.g, x = post.mm.weeks.num, color = mean.days.forelimb)) +
+  scale_color_gradient(low = "lightgray", high = "black") +
+  scale_linetype_manual(values=c(3,2,1)) +
+  geom_point(size = 0.1, alpha = 0, data = new.dataframe, aes(y=mass.g, x = post.mm.weeks.num)) +
+  geom_smooth(color = "black",
+              data = new.dataframe,
+              aes(x = post.mm.weeks.num, y = predict.mod1, linetype=devo.cat),
+              se = TRUE) +
+  theme_bw() +
+  labs(linetype="larval duration category", color="larval duration (days)") +
+  theme(legend.position = c(0.02, 0.98),
+        legend.justification = c("left", "top"),
+        legend.title = element_text(size=10),
+        legend.text = element_text(size=10),
+        axis.text.x=element_text(size=12, color = "black"), 
+        axis.text.y=element_text(size=12, color = "black"), 
+        axis.title.x=element_text(size=12, color = "black"), 
+        axis.title.y = element_text(size=12),
+        panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank()) +
+  scale_y_continuous(name = "mass (g)") + 
+  scale_x_continuous(name = "post-metamorphic age (weeks)", breaks = seq(1, 16, by = 16/6), labels = c("0", "1-2", "4-6", "8-10", "12-14", "16-18"))
+
+
+# PLOT DATA: Create panel plot with mass as a function of treatment and larval duration across all sampling points --------------
+ggarrange(plot.morph1, plot.morph2,
+          ncol = 2,
+          nrow = 1,
+          common.legend = FALSE,
+          legend = NULL,
           labels = c("a", "b"),
           font.label = list(size = 20, color = "black"))
 

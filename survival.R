@@ -25,10 +25,10 @@ devo.data = read.csv("Database_Metamorphosis - Metamorphosis Log.csv", header = 
 survi.data.tad = survi.data.tad[survi.data.tad$gs.code == "RS",]
 survi.data.exp = survi.data.exp[survi.data.exp$gs.code == "RS",]
 survi.data.juv = survi.data.juv[survi.data.juv$gs.code == "RS",]
-devo.data = devo.data[devo.data$gs.code == "RS",]
+devo.data = devo.data[devo.data$gs.code == "RS" & is.na(devo.data$gs.code) == FALSE,]
 
 # subset databases to only include weeks up to 18 (currently at 17 but need to change after October 23)
-survi.data.juv = survi.data.juv[survi.data.juv$postmm.week < 18 & is.na(survi.data.juv$postmm.week) == FALSE,]
+survi.data.juv = survi.data.juv[survi.data.juv$postmm.week <= 18 & is.na(survi.data.juv$postmm.week) == FALSE,]
 
 #change "control" to "low density" - called the low density treatment "CO for "control" during experiments because it has very different letters than "HD" for "high density", so was less likely to get confused. But technically it's a low density vs. high density comparison
 survi.data.tad$treatment[survi.data.tad$treatment == "control"] = "low density"
@@ -378,7 +378,7 @@ VarCorr(glmm.nointxn)
 
 # model definition - setting one random effect as juvenile tank id nested within clutch because want to control for correlation within those groups but not necessarily interested in defining the effect of being in those groups. Subsetting weeks 1-12 to represent breadth of data we are collecting, but will likely change this once we get another set of morphometric results for weeks 14-16
 
-glmm.full <- glmer(live.num/(seed.num-leth.samp.num) ~ treatment*devo.cat + postmm.week + (1|clutch:juv.tank.id), data=survi.data.juv[as.numeric(survi.data.juv$postmm.week) > 0,], na.action = na.omit, family = binomial, weights = (seed.num-leth.samp.num))
+glmm.full <- glmer(live.num/(seed.num-leth.samp.num) ~ treatment + devo.cat*postmm.week + (1|clutch:juv.tank.id), data=survi.data.juv[as.numeric(survi.data.juv$postmm.week) > 0,], na.action = na.omit, family = binomial, weights = (seed.num-leth.samp.num))
 
 glmm.nointxn <- glmer(live.num/(seed.num-leth.samp.num) ~ treatment + devo.cat + postmm.week + (1|clutch:juv.tank.id), data=survi.data.juv[as.numeric(survi.data.juv$postmm.week) > 0,], na.action = na.omit, family = binomial, weights = (seed.num-leth.samp.num))
 
@@ -413,14 +413,24 @@ new.dataframe = expand.grid(prob.survi = seq(from = 0, to = 1, by = 0.1),
                      clutch = c("A", "B", "C"),
                      devo.cat = c("early", "mid", "late"),
                      juv.tank.id = unique(survi.data.juv$juv.tank.id),
-                     postmm.week =  seq(from = 1, to = 17, by = 1))
+                     postmm.week =  seq(from = 1, to = 18, by = 1))
 new.dataframe$unique.id = paste(new.dataframe$clutch, new.dataframe$juv.tank.id, sep = ":")
 
 # remove random effect ids that don't exist in the model
 new.dataframe = new.dataframe[which(new.dataframe$unique.id %in% unique(row.names(ranef(glmm.nointxn)$"clutch:juv.tank.id")) == TRUE),]
 
+#change unique id to be a factor
+new.dataframe$unique.id = factor(new.dataframe$unique.id)
+
 #add predictions using model
 new.dataframe$predict.mod1 = predict(glmm.nointxn, type = "response", newdata = new.dataframe)
+
+## [-2] drops response from formula
+Designmat <- model.matrix(delete.response(terms(glmm.nointxn)),new.dataframe)
+predvar <- diag(Designmat %*% vcov(glmm.nointxn) %*% t(Designmat)) 
+new.dataframe$SE <- sqrt(predvar) 
+new.dataframe$ymin = new.dataframe$predict.mod1 - new.dataframe$SE
+new.dataframe$ymin[new.dataframe$ymin < 0] = 0
 
 
 # PLOT DATASETS: Effect of water level reduction on survival before and at metamorphosis -----------------------
@@ -458,43 +468,46 @@ ggplot(data = survi.data.tad.exp, aes(y=prop.survi*100, x = week, color = water.
 
 # option 1 percent survival from tank seeding to tank close-out without clutch included
 plot.survi1 <- ggplot(data = survi.data.tad.exp, aes(y=prop.survi*100, x = week, color = treatment)) + 
-  geom_point(position=position_jitterdodge(), size = 2.5, alpha = 0.7, show.legend = FALSE) + #show.legend is FALSE so that won't show up on panel plot later
-  stat_summary(fun.y=mean, geom="line", size = 1.2, aes(color = treatment, group = treatment), show.legend = FALSE) + #show.legend is FALSE so that won't show up on panel plot later
+  geom_point(position=position_jitterdodge(), size = 2.5, alpha = 0.7, show.legend = FALSE) + #show.legend is FALSE so that alpha = 1 legend from stat summary will be plotted
+  stat_summary(fun.y=mean, geom="line", size = 1.2, aes(color = treatment, group = treatment), show.legend = FALSE) + #show.legend is FALSE so that alpha = 1 legend from stat summary will be plotted
   stat_summary(fun = mean,
                geom = "errorbar",
                fun.max = function(x) mean(x) + sd(x) / sqrt(length(x)), #plotting +1 se
                fun.min = function(x) mean(x) - sd(x) / sqrt(length(x)), #plotting -1 se
                width=0.07, size = 0.7, colour="black", alpha=0.7, aes(group = treatment)) +
-  stat_summary(fun.y=mean, geom="point", color = "black", pch=21, size=5, aes(fill=treatment), show.legend = FALSE) + #show.legend is FALSE so that won't show up on panel plot later
+  stat_summary(fun.y=mean, geom="point", color = "black", pch=21, size=5, aes(fill=treatment), show.legend = TRUE) + 
   scale_color_manual(values=c(natparks.pals("BryceCanyon")[-2])) +
   scale_fill_manual(values=c(natparks.pals("BryceCanyon")[-2])) +
   theme_bw() +
-  theme(legend.title = element_blank(),
-        legend.text = element_text(size=20),
+  theme(legend.position = c(0.02, 0.02),
+        legend.justification = c("left", "bottom"),
+        legend.text = element_text(size=10),
+        legend.title = element_blank(),
         axis.text.x=element_text(size=12, color = "black"), 
         axis.text.y=element_text(size=12, color = "black"), 
         axis.title.x=element_text(size=12, color = "black"), 
         axis.title.y = element_text(size=12),
         panel.grid.major = element_blank(), 
         panel.grid.minor = element_blank()) +
-  #expand_limits(y = 0) +
-  scale_y_continuous(name = "percent survived") +
+  scale_y_continuous(name = "percent survived", limits = c(0, 100)) +
   scale_x_continuous(name = "pre-metamorphic age (weeks)", breaks = seq(1, 11, by = 1))
 
 plot.survi2 <- ggplot(data = survi.data.juv[survi.data.juv$postmm.week > 0,], aes(y=prop.survi*100, x = postmm.week, color = treatment)) + 
-  geom_point(position=position_jitterdodge(), size = 2.5, alpha = 0.7, show.legend = FALSE) + #show.legend is FALSE so that won't show up on panel plot later
-  stat_summary(fun.y=mean, geom="line", size = 1.2, aes(color = treatment, group = treatment), show.legend = FALSE) + #show.legend is FALSE so that won't show up on panel plot later
+  geom_point(position=position_jitterdodge(), size = 2.5, alpha = 0.7, show.legend = FALSE) + #show.legend is FALSE so that alpha = 1 legend from stat summary will be plotted
+  stat_summary(fun.y=mean, geom="line", size = 1.2, aes(color = treatment, group = treatment), show.legend = FALSE) + #show.legend is FALSE so that alpha = 1 legend from stat summary will be plotted
   stat_summary(fun = mean,
                geom = "errorbar",
                fun.max = function(x) mean(x) + sd(x) / sqrt(length(x)), #plotting +1 se
                fun.min = function(x) mean(x) - sd(x) / sqrt(length(x)), #plotting -1 se
                width=0.07, size = 0.7, colour="black", alpha=0.7, aes(group = treatment)) +
-  stat_summary(fun.y=mean, geom="point", color = "black", pch=21, size=5, aes(fill=treatment), show.legend = FALSE) + #show.legend is FALSE so that won't show up on panel plot later
+  stat_summary(fun.y=mean, geom="point", color = "black", pch=21, size=5, aes(fill=treatment), show.legend = TRUE) + 
   scale_color_manual(values=c(natparks.pals("BryceCanyon")[-2])) +
   scale_fill_manual(values=c(natparks.pals("BryceCanyon")[-2])) +
   theme_bw() +
-  theme(legend.title = element_blank(),
-        legend.text = element_text(size=20),
+  theme(legend.position = c(0.98, 0.98),
+        legend.justification = c("right", "top"),
+        legend.text = element_text(size=10),
+        legend.title = element_blank(),
         axis.text.x=element_text(size=12, color = "black"), 
         axis.text.y=element_text(size=12, color = "black"), 
         axis.title.x=element_text(size=12, color = "black"), 
@@ -502,7 +515,7 @@ plot.survi2 <- ggplot(data = survi.data.juv[survi.data.juv$postmm.week > 0,], ae
         panel.grid.major = element_blank(), 
         panel.grid.minor = element_blank()) +
   scale_y_continuous(name = "percent survived") +
-  scale_x_continuous(name = "post-metamorphic age (weeks)", breaks = seq(1, 17, by = 1))
+  scale_x_continuous(name = "post-metamorphic age (weeks)", breaks = seq(1, 18, by = 1))
 
 
 # PLOT DATASETS: Effect of developmental speed on survival at and after metamorphosis ---------------------
@@ -532,15 +545,21 @@ plot.survi3 <- ggplot(data = survi.data.juv[survi.data.juv$postmm.week > 0,], ae
 plot.survi3 <- ggplot() + 
   geom_point(size = 2.5, alpha = 0.7, data = survi.data.juv[survi.data.juv$postmm.week > 0,], aes(y=prop.survi, x = postmm.week, color = mean.days.forelimb)) +
   scale_color_gradient(low = "lightgray", high = "black") +
+  scale_fill_manual(values = c("lightgray", "darkgray","black")) +
+  scale_linetype_manual(values=c(3,2,1)) +
   geom_point(size = 0.1, alpha = 0, data = new.dataframe, aes(y=prob.survi, x = postmm.week)) +
   geom_smooth(color = "black",
               data = new.dataframe,
               aes(x = postmm.week, y = predict.mod1, linetype=devo.cat),
-              se = TRUE) +
+              se = F) +
+  geom_ribbon(data = new.dataframe, alpha = 0.1, aes(x = postmm.week, ymin=ymin, ymax=predict.mod1+SE, fill = devo.cat)) +
   theme_bw() +
   labs(linetype="larval duration category", color="larval duration (days)") +
-  theme(legend.title = element_text(size=12),
-        legend.text = element_text(size=12),
+  theme(legend.position = c(0.98, 0.96),
+        legend.justification = c("right", "top"),
+        legend.text = element_text(size=10),
+        legend.title = element_text(size=10),
+        legend.spacing.y = unit(0.05, "cm"), 
         axis.text.x=element_text(size=12, color = "black"), 
         axis.text.y=element_text(size=12, color = "black"), 
         axis.title.x=element_text(size=12, color = "black"), 
@@ -548,7 +567,7 @@ plot.survi3 <- ggplot() +
         panel.grid.major = element_blank(), 
         panel.grid.minor = element_blank()) +
   scale_y_continuous(name = "percent survived", limits = c(0,1), breaks = seq(0, 1, by = .25), labels = c(0,25,50,75,100)) + #binomial can only be fit 0-1 but relabeled to be percent rather than proportion survival
-  scale_x_continuous(name = "post-metamorphic age (weeks)", breaks = seq(0, 17, by = 1))
+  scale_x_continuous(name = "post-metamorphic age (weeks)", breaks = seq(1, 18, by = 1))
 
 
 
@@ -556,7 +575,7 @@ plot.survi3 <- ggplot() +
 ggarrange(plot.survi1, plot.survi2, plot.survi3,
           ncol = 3,
           nrow = 1,
-          common.legend = TRUE,
-          legend = "bottom",
+          common.legend = FALSE,
+          legend = NULL,
           labels = c("a", "b", "c"),
           font.label = list(size = 20, color = "black"))
