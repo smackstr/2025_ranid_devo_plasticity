@@ -1,6 +1,10 @@
 # this script creates figures of the behavior results for the 2023 ranid developmental paper
 # includes two main branches (1. effects of rearing density on behavior metrics, 2. effects of larval duration on behavior metrics) across larval period
 
+#helpful references for interpreting odds ratios
+#https://stats.oarc.ucla.edu/other/mult-pkg/faq/general/faq-how-do-i-interpret-odds-ratios-in-logistic-regression/
+#https://www.bookdown.org/rwnahhas/RMPH/blr-interp.html
+
 rm(list = ls())
 
 library(dplyr)
@@ -29,6 +33,10 @@ devo.data = devo.data[devo.data$gs.code == "RS",]
 morph.data.tad = morph.data.tad[morph.data.tad$gs.code == "RS",]
 behav.data.tad = behav.data.tad[behav.data.tad$gs.code == "RS",]
 
+
+# subset ev.data.summary.30 to only include open-field data
+ev.data.summary.30 = ev.data.summary.30[ev.data.summary.30$stim.time.cat.30 == "open-field start",]
+
 # subset morphological database to only include behavior measurements
 morph.data.tad = morph.data.tad[morph.data.tad$data.type == "behavior",]
 
@@ -48,8 +56,7 @@ morph.data.tad$treatment[morph.data.tad$treatment == "control"] = "low density"
 behav.data.tad$treatment[behav.data.tad$treatment == "control"] = "low density"
 
 # change column classes
-ev.data.summary.30$week = as.character(ev.data.summary.30$week)
-ev.data.summary.30$week = as.numeric(ev.data.summary.30$week)
+ev.data.summary.30$week = factor(ev.data.summary.30$week, ordered = TRUE, levels = c("3", "6", "9"))
 
 devo.data$first.six = factor(devo.data$first.six, levels = c("yes", "no"))
 devo.data$treatment = factor(devo.data$treatment)
@@ -99,28 +106,46 @@ behav.data.tad$unique.id = paste(behav.data.tad$gs.code, behav.data.tad$clutch, 
 # COMPILE DATASETS: Combine morphological and gosner stage data with ev.data.summary.30 and pres.abs.summ.openfield  -----------------------
 ev.data.summary.30$tl.cm = NA
 ev.data.summary.30$bl.cm = NA
+ev.data.summary.30$hw.cm = NA
+ev.data.summary.30$bw.cm = NA
+ev.data.summary.30$tmw.cm = NA
 ev.data.summary.30$avg.gosner.stage = NA
 
 for(i in 1:length(unique(ev.data.summary.30$unique.id))){
   ev.data.summary.30$tl.cm[ev.data.summary.30$unique.id == unique(ev.data.summary.30$unique.id)[i]] = morph.data.tad$tl.cm[morph.data.tad$unique.id == unique(ev.data.summary.30$unique.id)[i]] 
+  
   ev.data.summary.30$bl.cm[ev.data.summary.30$unique.id == unique(ev.data.summary.30$unique.id)[i]] = morph.data.tad$bl.cm[morph.data.tad$unique.id == unique(ev.data.summary.30$unique.id)[i]] 
+  
+  ev.data.summary.30$hw.cm[ev.data.summary.30$unique.id == unique(ev.data.summary.30$unique.id)[i]] = morph.data.tad$hw.cm[morph.data.tad$unique.id == unique(ev.data.summary.30$unique.id)[i]] 
+  
+  ev.data.summary.30$bw.cm[ev.data.summary.30$unique.id == unique(ev.data.summary.30$unique.id)[i]] = morph.data.tad$bw.cm[morph.data.tad$unique.id == unique(ev.data.summary.30$unique.id)[i]] 
+  
+  ev.data.summary.30$tmw.cm[ev.data.summary.30$unique.id == unique(ev.data.summary.30$unique.id)[i]] = morph.data.tad$tmw.cm[morph.data.tad$unique.id == unique(ev.data.summary.30$unique.id)[i]] 
+  
   ev.data.summary.30$avg.gosner.stage[ev.data.summary.30$unique.id == unique(ev.data.summary.30$unique.id)[i]] = behav.data.tad$avg.gosner.stage[behav.data.tad$unique.id == unique(ev.data.summary.30$unique.id)[i]] 
 }
 
 
 pres.abs.summ.openfield$tl.cm = NA
 pres.abs.summ.openfield$bl.cm = NA
+pres.abs.summ.openfield$hw.cm = NA
+pres.abs.summ.openfield$bw.cm = NA
+pres.abs.summ.openfield$tmw.cm = NA
 pres.abs.summ.openfield$avg.gosner.stage = NA
 
 for(i in 1:length(unique(pres.abs.summ.openfield$unique.id))){
   pres.abs.summ.openfield$tl.cm[pres.abs.summ.openfield$unique.id == unique(pres.abs.summ.openfield$unique.id)[i]] = morph.data.tad$tl.cm[morph.data.tad$unique.id == unique(pres.abs.summ.openfield$unique.id)[i]] 
+  
   pres.abs.summ.openfield$bl.cm[pres.abs.summ.openfield$unique.id == unique(pres.abs.summ.openfield$unique.id)[i]] = morph.data.tad$bl.cm[morph.data.tad$unique.id == unique(pres.abs.summ.openfield$unique.id)[i]] 
+  
+  pres.abs.summ.openfield$hw.cm[pres.abs.summ.openfield$unique.id == unique(pres.abs.summ.openfield$unique.id)[i]] = morph.data.tad$hw.cm[morph.data.tad$unique.id == unique(pres.abs.summ.openfield$unique.id)[i]]
+  
+  pres.abs.summ.openfield$bw.cm[pres.abs.summ.openfield$unique.id == unique(pres.abs.summ.openfield$unique.id)[i]] = morph.data.tad$bw.cm[morph.data.tad$unique.id == unique(pres.abs.summ.openfield$unique.id)[i]]
+  
+  pres.abs.summ.openfield$tmw.cm[pres.abs.summ.openfield$unique.id == unique(pres.abs.summ.openfield$unique.id)[i]] = morph.data.tad$tmw.cm[morph.data.tad$unique.id == unique(pres.abs.summ.openfield$unique.id)[i]]
+  
   pres.abs.summ.openfield$avg.gosner.stage[pres.abs.summ.openfield$unique.id == unique(pres.abs.summ.openfield$unique.id)[i]] = behav.data.tad$avg.gosner.stage[behav.data.tad$unique.id == unique(pres.abs.summ.openfield$unique.id)[i]] 
 }
-
-
-# subset ev.data.summary.30 to only include open-field data
-ev.data.summary.30 = ev.data.summary.30[ev.data.summary.30$stim.time.cat.30 == "open-field start",]
 
 
 # ANALYZE DATA: Effect of rearing density on % frames in motion across three sampling points during larval period -----------------------
@@ -140,39 +165,50 @@ cor.test(ev.data.summary.30$tl.cm, ev.data.summary.30$avg.gosner.stage,
 cor.test(ev.data.summary.30$bl.cm, ev.data.summary.30$tl.cm,
          method = "pearson", na.action = na.omit)
 
-
 # model definition - using glmer with binomial distribution to account for proportion data
-glmer.full <- glmer(movement/frames ~ treatment*scale(week) + bl.cm + (1|clutch:larv.tank.id), data = ev.data.summary.30[ev.data.summary.30$stim.time.cat.30 == "open-field start",], na.action = na.omit, family = binomial, weights = frames)
+glmer.fullintxn <- glmer(movement/frames ~ treatment*week + treatment*bl.cm + (1|clutch:larv.tank.id), data = ev.data.summary.30, na.action = na.omit, family = binomial, weights = frames)
 
-glmer.nointx <- glmer(movement/frames ~ treatment + week + bl.cm + avg.gosner.stage + (1|clutch:larv.tank.id), data = ev.data.summary.30[ev.data.summary.30$stim.time.cat.30 == "open-field start",], na.action = na.omit, family = binomial, weights = frames)
+glmer.weekintxn <- glmer(movement/frames ~ treatment*week + bl.cm + (1|clutch:larv.tank.id), data = ev.data.summary.30, na.action = na.omit, family = binomial, weights = frames)
 
-glmer.noweeks <- glmer(movement/frames ~ treatment + bl.cm + scale(avg.gosner.stage) + (1|clutch:larv.tank.id), data = ev.data.summary.30[ev.data.summary.30$stim.time.cat.30 == "open-field start",], na.action = na.omit, family = binomial, weights = frames)
+glmer.sizeintxn <- glmer(movement/frames ~ treatment + week + treatment*bl.cm + (1|clutch:larv.tank.id), data = ev.data.summary.30, na.action = na.omit, family = binomial, weights = frames)
 
-glmer.notreat <- glmer(movement/frames ~ week + bl.cm + scale(avg.gosner.stage) + (1|clutch:larv.tank.id), data = ev.data.summary.30[ev.data.summary.30$stim.time.cat.30 == "open-field start",], na.action = na.omit, family = binomial, weights = frames)
+glmer.nointx <- glmer(movement/frames ~ treatment + week + bl.cm + (1|clutch:larv.tank.id), data = ev.data.summary.30, na.action = na.omit, family = binomial, weights = frames)
 
-glmer.nosize <- glmer(movement/frames ~ treatment + week + scale(avg.gosner.stage) + (1|clutch:larv.tank.id), data = ev.data.summary.30[ev.data.summary.30$stim.time.cat.30 == "open-field start",], na.action = na.omit, family = binomial, weights = frames)
+glmer.noweeks <- glmer(movement/frames ~ treatment + bl.cm + (1|clutch:larv.tank.id), data = ev.data.summary.30, na.action = na.omit, family = binomial, weights = frames)
 
-glmer.nogs <- glmer(movement/frames ~ treatment + week + bl.cm + (1|clutch:larv.tank.id), data = ev.data.summary.30[ev.data.summary.30$stim.time.cat.30 == "open-field start",], na.action = na.omit, family = binomial, weights = frames)
+glmer.notreat <- glmer(movement/frames ~ week + bl.cm + (1|clutch:larv.tank.id), data = ev.data.summary.30, na.action = na.omit, family = binomial, weights = frames)
 
-glmer.null<- glmer(movement/frames ~ (1|clutch:larv.tank.id), data = ev.data.summary.30[ev.data.summary.30$stim.time.cat.30 == "open-field start",], na.action = na.omit, family = binomial, weights = frames)
+glmer.nosize <- glmer(movement/frames ~ treatment + week + (1|clutch:larv.tank.id), data = ev.data.summary.30, na.action = na.omit, family = binomial, weights = frames)
 
-glm.full<- glm(movement/frames ~ treatment*week + bl.cm + scale(avg.gosner.stage), data = ev.data.summary.30[ev.data.summary.30$stim.time.cat.30 == "open-field start",], na.action = na.omit, family = binomial, weights = frames)
+glmer.null<- glmer(movement/frames ~ (1|clutch:larv.tank.id), data = ev.data.summary.30, na.action = na.omit, family = binomial, weights = frames)
+
+glm.full<- glm(movement/frames ~ treatment*week + bl.cm, data = ev.data.summary.30, na.action = na.omit, family = binomial, weights = frames)
 
 # model selection using likelihood ratio test
-anova(glmer.full, glmer.nointx, glmer.notreat, glmer.nosize, glmer.noweeks, glmer.nogs, glmer.null, test="Chisq")
+anova(glmer.fullintxn, glmer.weekintxn, glmer.sizeintxn, glmer.nointx, glmer.notreat, glmer.nosize, glmer.noweeks, glmer.null, test="Chisq")
 
 # check if random effect significant - if model without the random effect is not significantly different than model with the random effect, then random effect isn't explaining the variance much. Even if not significant, should include in final model to more accurately account for covariance. higher |AIC| provides better fit to the data. 
-anova(glmer.full, glm.full, test = "Chisq")
+anova(glmer.fullintxn, glm.full, test = "Chisq")
 
 # Check Model Assumptions
-check_model(glmer.full)
+check_model(glmer.fullintxn)
 
 # Final Model
-Anova(glmer.full, type = "III") #gives information for each factor; should use type = "II" when interaction terms are NOT significant and thus not included in the final model; should use type = "III" when interaction terms are significant and thus included in the final model
-summary(glmer.full)
-as.data.frame(exp(fixef(glmer.full))) #exponentiate the coefficient because log-transformed the response variable of mass. This gives the multiplicative factor for every one-unit increase in the independent variable.
+Anova(glmer.fullintxn, type = "III") #gives information for each factor; should use type = "II" when interaction terms are NOT significant and thus not included in the final model; should use type = "III" when interaction terms are significant and thus included in the final model
+summary(glmer.fullintxn)
+as.data.frame(exp(fixef(glmer.fullintxn))) #exponentiate the coefficient to transform log odds to an odds ratio - good explanation here: https://stats.oarc.ucla.edu/other/mult-pkg/faq/general/faq-how-do-i-interpret-odds-ratios-in-logistic-regression/
 ranef(glmer.full)
 confint(glmer.full)
+
+#for high density individuals, the odds ratio is XX for a one-unit increase in week
+exp(fixef(glmer.fullintxn)[3])
+#for low density individuals, the odds ratio is XX for a one-unit increase in week
+exp(fixef(glmer.fullintxn)[3] + fixef(glmer.fullintxn)[6])
+
+#for high density individuals, the odds ratio is XX for a one-unit increase in body length
+exp(fixef(glmer.fullintxn)[5])
+#for low density individuals, the odds ratio is XX for a one-unit increase in week
+exp(fixef(glmer.fullintxn)[5] + fixef(glmer.fullintxn)[8])
 
 
 # ANALYZE DATA: Effect of rearing density on % arena visited across three sampling points during larval period -----------------------
@@ -184,31 +220,38 @@ temp <- pres.abs.summ.openfield %>%
 # model definition - using glmer with binomial distribution - data cannot support random effect structure of larval id nested within clutch because didn't test each larval tank at all sampling points
 # OR NEED TO USE WEIGHTS = NUMBER OF VISITED SQUARES/NUMBER OF TOTAL SQUARES
 # USE LET.PRESAB. POINTS TO GET AT EACH OF THESE FOR A COLUMN SO CAN USE IN THESE ANALYSES
+pres.abs.summ.openfield$week = as.numeric(pres.abs.summ.openfield$week)
 
-glmer.full <- glmer(cells.presence/cells.total ~ treatment*week + (1|clutch:larv.tank.id), data = pres.abs.summ.openfield, na.action = na.omit, family = binomial, weights = cells.total)
+glmer.fullintxn <- glmer(cells.presence/cells.total ~ treatment*scale(week) + treatment*bl.cm + (1|clutch:larv.tank.id), data = pres.abs.summ.openfield, na.action = na.omit, family = binomial, weights = cells.total)
 
-glmer.nointx <- glmer(cells.presence/cells.total ~ treatment + week + (1|clutch:larv.tank.id), data = pres.abs.summ.openfield, na.action = na.omit, family = binomial, weights = cells.total)
+glmer.weekintxn <- glmer(cells.presence/cells.total ~ treatment*scale(week) + bl.cm + (1|clutch:larv.tank.id), data = pres.abs.summ.openfield, na.action = na.omit, family = binomial, weights = cells.total)
 
-glmer.noweeks <- glmer(cells.presence/cells.total ~ treatment + (1|clutch:larv.tank.id), data = pres.abs.summ.openfield, na.action = na.omit, family = binomial, weights = cells.total)
+glmer.sizeintxn <- glmer(cells.presence/cells.total ~ treatment + scale(week) + treatment*bl.cm + (1|clutch:larv.tank.id), data = pres.abs.summ.openfield, na.action = na.omit, family = binomial, weights = cells.total)
 
-glmer.notreat <- glmer(cells.presence/cells.total ~ week + (1|clutch:larv.tank.id), data = pres.abs.summ.openfield, na.action = na.omit, family = binomial, weights = cells.total)
+glmer.nointx <- glmer(cells.presence/cells.total ~ treatment + week + bl.cm + (1|clutch:larv.tank.id), data = pres.abs.summ.openfield, na.action = na.omit, family = binomial, weights = cells.total)
+
+glmer.noweeks <- glmer(cells.presence/cells.total ~ treatment + bl.cm + (1|clutch:larv.tank.id), data = pres.abs.summ.openfield, na.action = na.omit, family = binomial, weights = cells.total)
+
+glmer.nosize <- glmer(cells.presence/cells.total ~ treatment + week + (1|clutch:larv.tank.id), data = pres.abs.summ.openfield, na.action = na.omit, family = binomial, weights = cells.total)
+
+glmer.notreat <- glmer(cells.presence/cells.total ~ week + bl.cm + (1|clutch:larv.tank.id), data = pres.abs.summ.openfield, na.action = na.omit, family = binomial, weights = cells.total)
 
 glmer.null<- glmer(cells.presence/cells.total ~ (1|clutch:larv.tank.id), data = pres.abs.summ.openfield, na.action = na.omit, family = binomial, weights = cells.total)
 
-glm.full<- glm(cells.presence/cells.total ~ treatment*week, data = pres.abs.summ.openfield, na.action = na.omit, family = binomial, weights = cells.total)
+glm.full<- glm(cells.presence/cells.total ~ treatment*week + treatment*bl.cm, data = pres.abs.summ.openfield, na.action = na.omit, family = binomial, weights = cells.total)
 
 # model selection using likelihood ratio test
-anova(glmer.full, glmer.nointx, glmer.notreat, glmer.noweeks, glmer.null, test="Chisq")
+anova(glmer.fullintxn, glmer.weekintxn, glmer.sizeintxn, glmer.nointx, glmer.notreat, glmer.noweeks, glmer.null, test="Chisq")
 
 # check if random effect significant - if model without the random effect is not significantly different than model with the random effect, then random effect isn't explaining the variance much. Even if not significant, should include in final model to more accurately account for covariance. higher |AIC| provides better fit to the data. 
-anova(glmer.full, glm.full, test = "Chisq")
+anova(glmer.fullintxn, glm.full, test = "Chisq")
 
 # Check Model Assumptions
 check_model(glmer.full)
 
 # Final Model
-Anova(glmer.full, type = "III") #gives information for each factor; should use type = "II" when interaction terms are NOT significant and thus not included in the final model; should use type = "III" when interaction terms are significant and thus included in the final model
-summary(glmer.full)
+Anova(glmer.fullintxn, type = "III") #gives information for each factor; should use type = "II" when interaction terms are NOT significant and thus not included in the final model; should use type = "III" when interaction terms are significant and thus included in the final model
+summary(glmer.fullintxn)
 as.data.frame(exp(fixef(glmer.full))) #exponentiate the coefficient because log-transformed the response variable of mass. This gives the multiplicative factor for every one-unit increase in the independent variable.
 ranef(glmer.full)
 confint(glmer.full)
@@ -218,7 +261,7 @@ confint(glmer.full)
 # PLOT DATASETS: Effect of rearing density on % frames in motion across three sampling points during larval period -----------------------
 
 # option 1 = plotting only open field start
-plot.behav.1 <- ggplot(data = ev.data.summary.30[ev.data.summary.30$stim.time.cat.30 == "open-field start",], aes(y=100*(movement/frames), x = week, color = treatment)) + 
+plot.behav.1 <- ggplot(data = ev.data.summary.30, aes(y=100*(movement/frames), x = week, color = treatment)) + 
   geom_point(position=position_jitterdodge(), size = 2.5, alpha = 0.7) +
   stat_summary(fun.y=mean, geom="line", size = 1.2, aes(color = treatment, group = treatment)) +
   stat_summary(fun = mean,
@@ -239,7 +282,7 @@ plot.behav.1 <- ggplot(data = ev.data.summary.30[ev.data.summary.30$stim.time.ca
         panel.grid.major = element_blank(), 
         panel.grid.minor = element_blank()) +
   scale_y_continuous(name = "% frames in motion", limits = c(0,100)) +
-  scale_x_discrete(name = "age (weeks)")
+  scale_x_continuous(name = "age (weeks)", breaks = c(3,6,9))
 
 ggplot(data = ev.data.summary.30[ev.data.summary.30$stim.time.cat.30 == "open-field start",], aes(y=100*(movement/frames), x = avg.gosner.stage, color = treatment)) + 
   facet_grid(rows= vars(week)) +
@@ -320,10 +363,323 @@ plot.behav.2 <- ggplot(data = pres.abs.summ.openfield, aes(y=100*prop.arena.visi
   scale_y_continuous(name = "% arena visited", limits = c(0,100)) +
   scale_x_discrete(name = "age (weeks)")
 
+
+# PLOT DATASETS: Difference in body size (cm) across three sampling points during larval period -----------------------
+
+#correlation test
+cor.test(ev.data.summary.30$bl.cm, ev.data.summary.30$tl.cm,
+         method = "pearson", na.action = na.omit)
+
+# total length
+plot.size.tl <- ggplot(data = ev.data.summary.30, aes(y=tl.cm, x = as.factor(week), color = treatment), show.legend = FALSE) + 
+  geom_point(position=position_jitterdodge(), size = 2.5, alpha = 0.7, show.legend = FALSE) +
+  geom_boxplot(aes(y=tl.cm, x = as.factor(week))) +
+  scale_color_manual(values=c(natparks.pals("BryceCanyon")[-2])) +
+  scale_fill_manual(values=c(natparks.pals("BryceCanyon")[-2])) +
+  theme_bw() +
+  theme(legend.title = element_blank(),
+        legend.text = element_text(size=14),
+        axis.text.x=element_text(size=14, color = "black", angle=0, hjust = 0.5, vjust = 0), 
+        axis.text.y=element_text(size=14, color = "black"), 
+        axis.title.x=element_text(size=14, color = "black"), 
+        axis.title.y = element_text(size=14),
+        panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank()) +
+  scale_y_continuous(name = "total length (cm)") +
+  scale_x_discrete(name = "week")
+
+# body length
+plot.size.bl <- ggplot(data = ev.data.summary.30, aes(y=bl.cm, x = as.factor(week), color = treatment), show.legend = FALSE) + 
+  geom_point(position=position_jitterdodge(), size = 2.5, alpha = 0.7, show.legend = FALSE) +
+  geom_boxplot(aes(y=bl.cm, x = as.factor(week))) +
+  scale_color_manual(values=c(natparks.pals("BryceCanyon")[-2])) +
+  scale_fill_manual(values=c(natparks.pals("BryceCanyon")[-2])) +
+  theme_bw() +
+  theme(legend.title = element_blank(),
+        legend.text = element_text(size=14),
+        axis.text.x=element_text(size=14, color = "black", angle=0, hjust = 0.5, vjust = 0), 
+        axis.text.y=element_text(size=14, color = "black"), 
+        axis.title.x=element_text(size=14, color = "black"), 
+        axis.title.y = element_text(size=14),
+        panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank()) +
+  scale_y_continuous(name = "body length (cm)") +
+  scale_x_discrete(name = "week")
+
+
+# body length/total length
+plot.size.bltl <- ggplot(data = ev.data.summary.30, aes(y=bl.cm/tl.cm, x = as.factor(week), color = treatment), show.legend = FALSE) + 
+  geom_point(position=position_jitterdodge(), size = 2.5, alpha = 0.7, show.legend = FALSE) +
+  geom_boxplot(aes(y=bl.cm/tl.cm, x = as.factor(week))) +
+  scale_color_manual(values=c(natparks.pals("BryceCanyon")[-2])) +
+  scale_fill_manual(values=c(natparks.pals("BryceCanyon")[-2])) +
+  theme_bw() +
+  theme(legend.title = element_blank(),
+        legend.text = element_text(size=14),
+        axis.text.x=element_text(size=14, color = "black", angle=0, hjust = 0.5, vjust = 0), 
+        axis.text.y=element_text(size=14, color = "black"), 
+        axis.title.x=element_text(size=14, color = "black"), 
+        axis.title.y = element_text(size=14),
+        panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank()) +
+  scale_y_continuous(name = "body length/total length (cm)") +
+  scale_x_discrete(name = "week")
+
+# body width
+plot.size.bw <- ggplot(data = ev.data.summary.30, aes(y=bw.cm, x = as.factor(week), color = treatment), show.legend = FALSE) + 
+  geom_point(position=position_jitterdodge(), size = 2.5, alpha = 0.7, show.legend = FALSE) +
+  geom_boxplot(aes(y=bw.cm, x = as.factor(week))) +
+  scale_color_manual(values=c(natparks.pals("BryceCanyon")[-2])) +
+  scale_fill_manual(values=c(natparks.pals("BryceCanyon")[-2])) +
+  theme_bw() +
+  theme(legend.title = element_blank(),
+        legend.text = element_text(size=14),
+        axis.text.x=element_text(size=14, color = "black", angle=0, hjust = 0.5, vjust = 0), 
+        axis.text.y=element_text(size=14, color = "black"), 
+        axis.title.x=element_text(size=14, color = "black"), 
+        axis.title.y = element_text(size=14),
+        panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank()) +
+  scale_y_continuous(name = "body width (cm)") +
+  scale_x_discrete(name = "week")
+
+# head width
+plot.size.hw <- ggplot(data = ev.data.summary.30, aes(y=hw.cm, x = as.factor(week), color = treatment), show.legend = FALSE) + 
+  geom_point(position=position_jitterdodge(), size = 2.5, alpha = 0.7, show.legend = FALSE) +
+  geom_boxplot(aes(y=hw.cm, x = as.factor(week))) +
+  scale_color_manual(values=c(natparks.pals("BryceCanyon")[-2])) +
+  scale_fill_manual(values=c(natparks.pals("BryceCanyon")[-2])) +
+  theme_bw() +
+  theme(legend.title = element_blank(),
+        legend.text = element_text(size=14),
+        axis.text.x=element_text(size=14, color = "black", angle=0, hjust = 0.5, vjust = 0), 
+        axis.text.y=element_text(size=14, color = "black"), 
+        axis.title.x=element_text(size=14, color = "black"), 
+        axis.title.y = element_text(size=14),
+        panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank()) +
+  scale_y_continuous(name = "head width (cm)") +
+  scale_x_discrete(name = "week")
+
+
+# tail-muscle width
+plot.size.tmw <- ggplot(data = ev.data.summary.30, aes(y=tmw.cm, x = as.factor(week), color = treatment), show.legend = FALSE) + 
+  geom_point(position=position_jitterdodge(), size = 2.5, alpha = 0.7, show.legend = FALSE) +
+  geom_boxplot(aes(y=tmw.cm, x = as.factor(week))) +
+  scale_color_manual(values=c(natparks.pals("BryceCanyon")[-2])) +
+  scale_fill_manual(values=c(natparks.pals("BryceCanyon")[-2])) +
+  theme_bw() +
+  theme(legend.title = element_blank(),
+        legend.text = element_text(size=14),
+        axis.text.x=element_text(size=14, color = "black", angle=0, hjust = 0.5, vjust = 0), 
+        axis.text.y=element_text(size=14, color = "black"), 
+        axis.title.x=element_text(size=14, color = "black"), 
+        axis.title.y = element_text(size=14),
+        panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank()) +
+  scale_y_continuous(name = "tail-muscle width (cm)") +
+  scale_x_discrete(name = "week")
+
+
+# PLOT DATASETS: Effect of body size (cm) on % frames in motion across three sampling points during larval period -----------------------
+
+plot.move.tl <- ggplot(data = ev.data.summary.30, aes(y=(movement/frames), x = tl.cm, color = treatment, show.legend = FALSE)) + 
+  facet_grid(cols = vars(week)) +
+  geom_point(size = 2.5, alpha = 0.7, show.legend = TRUE) +
+  stat_smooth(method="glm", #fit logistic model with confidence interval
+              method.args = list(family = binomial),
+              mapping = aes(color=treatment, fill = treatment, weight = frames), 
+              se=T) +
+  scale_color_manual(values=c(natparks.pals("BryceCanyon")[-2])) +
+  scale_fill_manual(values=c(natparks.pals("BryceCanyon")[-2])) +
+  theme_bw() +
+  theme(legend.title = element_blank(),
+        legend.text = element_text(size=14),
+        axis.text.x=element_text(size=14, color = "black", angle=0, hjust = 0.5, vjust = 0), 
+        axis.text.y=element_text(size=14, color = "black"), 
+        axis.title.x=element_text(size=14, color = "black"), 
+        axis.title.y = element_text(size=14),
+        panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank()) +
+  scale_y_continuous(name = "% frames in motion", limits = c(0,1), labels = c(0, 25, 50, 75, 100)) +
+  scale_x_continuous(name = "total length (cm)")
+
+
+plot.move.bl <- ggplot(data = ev.data.summary.30, aes(y=movement/frames, x = bl.cm, color = treatment, show.legend = FALSE)) + 
+  facet_grid(cols = vars(week)) +
+  geom_point(size = 2.5, alpha = 0.7, show.legend = TRUE) +
+  stat_smooth(method="glm", #fit logistic model with confidence interval
+              method.args = list(family = binomial), 
+              mapping = aes(color=treatment, fill = treatment, weight = frames), 
+              se=T) +
+  scale_color_manual(values=c(natparks.pals("BryceCanyon")[-2])) +
+  scale_fill_manual(values=c(natparks.pals("BryceCanyon")[-2])) +
+  theme_bw() +
+  theme(legend.title = element_blank(),
+        legend.text = element_text(size=14),
+        axis.text.x=element_text(size=14, color = "black", angle=0, hjust = 0.5, vjust = 0), 
+        axis.text.y=element_text(size=14, color = "black"), 
+        axis.title.x=element_text(size=14, color = "black"), 
+        axis.title.y = element_text(size=14),
+        panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank()) +
+  scale_y_continuous(name = "% frames in motion", limits = c(0,1), labels = c(0, 25, 50, 75, 100)) +
+  scale_x_continuous(name = "body length (cm)")
+
+
+plot.move.bw <- ggplot(data = ev.data.summary.30, aes(y=movement/frames, x = bw.cm, color = treatment, show.legend = FALSE)) + 
+  facet_grid(cols = vars(week)) +
+  geom_point(size = 2.5, alpha = 0.7, show.legend = TRUE) +
+  stat_smooth(method="glm", #fit logistic model with confidence interval
+              method.args = list(family = binomial), 
+              mapping = aes(color=treatment, fill = treatment, weight = frames), 
+              se=T) +
+  scale_color_manual(values=c(natparks.pals("BryceCanyon")[-2])) +
+  scale_fill_manual(values=c(natparks.pals("BryceCanyon")[-2])) +
+  theme_bw() +
+  theme(legend.title = element_blank(),
+        legend.text = element_text(size=14),
+        axis.text.x=element_text(size=14, color = "black", angle=0, hjust = 0.5, vjust = 0), 
+        axis.text.y=element_text(size=14, color = "black"), 
+        axis.title.x=element_text(size=14, color = "black"), 
+        axis.title.y = element_text(size=14),
+        panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank()) +
+  scale_y_continuous(name = "% frames in motion", limits = c(0,1), labels = c(0, 25, 50, 75, 100)) +
+  scale_x_continuous(name = "body width (cm)")
+
+
+plot.move.tmw <- ggplot(data = ev.data.summary.30, aes(y=movement/frames, x = tmw.cm, color = treatment, show.legend = FALSE)) + 
+  facet_grid(cols = vars(week)) +
+  geom_point(position=position_jitterdodge(), size = 2.5, alpha = 0.7, show.legend = TRUE) +
+  stat_smooth(method="glm", #fit logistic model with confidence interval
+              method.args = list(family = binomial), 
+              mapping = aes(color=treatment, fill = treatment, weight = frames), 
+              se=T) +
+  scale_color_manual(values=c(natparks.pals("BryceCanyon")[-2])) +
+  scale_fill_manual(values=c(natparks.pals("BryceCanyon")[-2])) +
+  theme_bw() +
+  theme(legend.title = element_blank(),
+        legend.text = element_text(size=14),
+        axis.text.x=element_text(size=14, color = "black", angle=0, hjust = 0.5, vjust = 0), 
+        axis.text.y=element_text(size=14, color = "black"), 
+        axis.title.x=element_text(size=14, color = "black"), 
+        axis.title.y = element_text(size=14),
+        panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank()) +
+  scale_y_continuous(name = "% frames in motion", limits = c(0,1), labels = c(0, 25, 50, 75, 100)) +
+  scale_x_continuous(name = "tail-muscle width (cm)", limits = c(0,0.5))
+
+
+
+# PLOT DATASETS: Effect of body size (cm) on exploration across three sampling points during larval period -----------------------
+
+plot.explo.tl <- ggplot(data = pres.abs.summ.openfield, aes(y=(cells.presence/cells.total), x = tl.cm, color = treatment, show.legend = FALSE)) + 
+  facet_grid(cols = vars(week)) +
+  geom_point(size = 2.5, alpha = 0.7, show.legend = TRUE) +
+  stat_smooth(method="glm", #fit logistic model with confidence interval
+              method.args = list(family = binomial),
+              mapping = aes(color=treatment, fill = treatment, weight = cells.total), 
+              se=T) +
+  scale_color_manual(values=c(natparks.pals("BryceCanyon")[-2])) +
+  scale_fill_manual(values=c(natparks.pals("BryceCanyon")[-2])) +
+  theme_bw() +
+  theme(legend.title = element_blank(),
+        legend.text = element_text(size=14),
+        axis.text.x=element_text(size=14, color = "black", angle=0, hjust = 0.5, vjust = 0), 
+        axis.text.y=element_text(size=14, color = "black"), 
+        axis.title.x=element_text(size=14, color = "black"), 
+        axis.title.y = element_text(size=14),
+        panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank()) +
+  scale_y_continuous(name = "% arena explored", limits = c(0,1), labels = c(0, 25, 50, 75, 100)) +
+  scale_x_continuous(name = "total length (cm)")
+
+
+plot.explo.bl <- ggplot(data = pres.abs.summ.openfield, aes(y=(cells.presence/cells.total), x = bl.cm, color = treatment, show.legend = FALSE)) + 
+  facet_grid(cols = vars(week)) +
+  geom_point(size = 2.5, alpha = 0.7, show.legend = TRUE) +
+  stat_smooth(method="glm", #fit logistic model with confidence interval
+              method.args = list(family = binomial),
+              mapping = aes(color=treatment, fill = treatment, weight = cells.total), 
+              se=T) +
+  scale_color_manual(values=c(natparks.pals("BryceCanyon")[-2])) +
+  scale_fill_manual(values=c(natparks.pals("BryceCanyon")[-2])) +
+  theme_bw() +
+  theme(legend.title = element_blank(),
+        legend.text = element_text(size=14),
+        axis.text.x=element_text(size=14, color = "black", angle=0, hjust = 0.5, vjust = 0), 
+        axis.text.y=element_text(size=14, color = "black"), 
+        axis.title.x=element_text(size=14, color = "black"), 
+        axis.title.y = element_text(size=14),
+        panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank()) +
+  scale_y_continuous(name = "% arena explored", limits = c(0,1), labels = c(0, 25, 50, 75, 100)) +
+  scale_x_continuous(name = "body length (cm)")
+
+
+plot.explo.bw <- ggplot(data = pres.abs.summ.openfield, aes(y=(cells.presence/cells.total), x = bw.cm, color = treatment, show.legend = FALSE)) + 
+  facet_grid(cols = vars(week)) +
+  geom_point(size = 2.5, alpha = 0.7, show.legend = TRUE) +
+  stat_smooth(method="glm", #fit logistic model with confidence interval
+              method.args = list(family = binomial),
+              mapping = aes(color=treatment, fill = treatment, weight = cells.total), 
+              se=T) +
+  scale_color_manual(values=c(natparks.pals("BryceCanyon")[-2])) +
+  scale_fill_manual(values=c(natparks.pals("BryceCanyon")[-2])) +
+  theme_bw() +
+  theme(legend.title = element_blank(),
+        legend.text = element_text(size=14),
+        axis.text.x=element_text(size=14, color = "black", angle=0, hjust = 0.5, vjust = 0), 
+        axis.text.y=element_text(size=14, color = "black"), 
+        axis.title.x=element_text(size=14, color = "black"), 
+        axis.title.y = element_text(size=14),
+        panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank()) +
+  scale_y_continuous(name = "% arena explored", limits = c(0,1), labels = c(0, 25, 50, 75, 100)) +
+  scale_x_continuous(name = "body width (cm)")
+
+
+plot.explo.tmw <- ggplot(data = pres.abs.summ.openfield, aes(y=(cells.presence/cells.total), x = tmw.cm, color = treatment, show.legend = FALSE)) + 
+  facet_grid(cols = vars(week)) +
+  geom_point(size = 2.5, alpha = 0.7, show.legend = TRUE) +
+  stat_smooth(method="glm", #fit logistic model with confidence interval
+              method.args = list(family = binomial),
+              mapping = aes(color=treatment, fill = treatment, weight = cells.total), 
+              se=T) +
+  scale_color_manual(values=c(natparks.pals("BryceCanyon")[-2])) +
+  scale_fill_manual(values=c(natparks.pals("BryceCanyon")[-2])) +
+  theme_bw() +
+  theme(legend.title = element_blank(),
+        legend.text = element_text(size=14),
+        axis.text.x=element_text(size=14, color = "black", angle=0, hjust = 0.5, vjust = 0), 
+        axis.text.y=element_text(size=14, color = "black"), 
+        axis.title.x=element_text(size=14, color = "black"), 
+        axis.title.y = element_text(size=14),
+        panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank()) +
+  scale_y_continuous(name = "% arena explored", limits = c(0,1), labels = c(0, 25, 50, 75, 100)) +
+  scale_x_continuous(name = "tail-muscle width (cm)")
+
+
+
 # PLOT DATASETS: Combine plots -----------------------
-ggarrange(plot.behav.1, plot.behav.2, 
+ggarrange(plot.size.tl, plot.size.bl, plot.size.bltl, plot.size.hw, plot.size.bw, plot.size.tmw,
           common.legend = TRUE,
           legend = "bottom",
-          labels = c("a", "b"),
+          labels = c("a", "b", "c", "d", "e", "f"),
+          font.label = list(size = 20, color = "black"))
+
+#morphometrics
+ggarrange(plot.move.tl, plot.move.bl, plot.move.bw, plot.move.tmw,
+          common.legend = TRUE,
+          legend = "bottom",
+          labels = c("a", "b", "c", "d"),
+          font.label = list(size = 20, color = "black"))
+
+ggarrange(plot.explo.tl, plot.explo.bl, plot.explo.bw, plot.explo.tmw,
+          common.legend = TRUE,
+          legend = "bottom",
+          labels = c("a", "b", "c", "d"),
           font.label = list(size = 20, color = "black"))
 

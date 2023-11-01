@@ -32,13 +32,22 @@ morph.data.mm$treatment[morph.data.mm$treatment == "control"] = "low density"
 morph.data.juv$treatment[morph.data.juv$treatment == "control"] = "low density"
 devo.data$treatment[devo.data$treatment == "control"] = "low density"
 
+# subset devo dataset to only include first six individuals and non-overflow individuals
+devo.data = devo.data[devo.data$first.six == "yes",]
+devo.data = devo.data[devo.data$treatment != "overflow",]
+
+# subset morph.data.mm to only include first six individuals and non-overflow individuals
+morph.data.mm = morph.data.mm[morph.data.mm$first.six == "yes",]
+morph.data.mm = morph.data.mm[morph.data.mm$treatment != "overflow",]
+morph.data.juv = morph.data.juv[morph.data.juv$treatment != "overflow",]
+
 #change column classes
 morph.data.mm$first.six = factor(morph.data.mm$first.six, levels = c("yes", "no"))
 devo.data$first.six = factor(devo.data$first.six, levels = c("yes", "no"))
 
-morph.data.mm$treatment = factor(morph.data.mm$treatment)
-morph.data.juv$treatment = factor(morph.data.juv$treatment)
-devo.data$treatment = factor(devo.data$treatment)
+morph.data.mm$treatment = factor(morph.data.mm$treatment, levels = c("low density", "high density"))
+morph.data.juv$treatment = factor(morph.data.juv$treatment, levels = c("low density", "high density"))
+devo.data$treatment = factor(devo.data$treatment, levels = c("low density", "high density"))
 
 morph.data.mm$larv.tank.id = factor(morph.data.mm$larv.tank.id)
 devo.data$larv.tank.id = factor(devo.data$larv.tank.id)
@@ -47,8 +56,12 @@ morph.data.mm$juv.tank.id = factor(morph.data.mm$juv.tank.id)
 morph.data.juv$juv.tank.id = factor(morph.data.juv$juv.tank.id)
 devo.data$juv.tank.id = factor(devo.data$juv.tank.id)
 
-morph.data.mm$post.mm.weeks = factor(morph.data.mm$post.mm.weeks, levels = c("0"))
-morph.data.juv$post.mm.weeks = factor(morph.data.juv$post.mm.weeks, levels = c("1-2", "4-6", "5-7", "8-10", "11-12", "12-14", "16-18"))
+morph.data.mm$post.mm.weeks = factor(morph.data.mm$post.mm.weeks, ordered = TRUE, levels = c("0")) #set weeks as ordered factor
+morph.data.juv$post.mm.weeks = factor(morph.data.juv$post.mm.weeks, ordered = TRUE, levels = c("1-2", "4-6", "5-7", "8-10", "11-12", "12-14", "16-18")) #set weeks as ordered factor
+
+# only keep certain weeks (0, 1-2, 4-6, 8-10, 12-14) and when individual not measured twice within that week
+morph.data.juv = morph.data.juv[morph.data.juv$post.mm.weeks != "5-7" & morph.data.juv$post.mm.weeks != "11-12",]
+morph.data.juv = morph.data.juv[morph.data.juv$repeat.measure == "no",]
 
 # remove rows for NA tanks and rename extra tanks
 morph.data.juv = morph.data.juv[is.na(morph.data.juv$juv.tank.id) == FALSE,]
@@ -69,17 +82,9 @@ devo.data$unique.id.juv = paste(devo.data$gs.code, devo.data$clutch, devo.data$j
 morph.data.mm$unique.id.indiv = paste(morph.data.mm$gs.code, morph.data.mm$clutch, morph.data.mm$larv.tank.id, morph.data.mm$animal.id, sep = "_")
 devo.data$unique.id.indiv = paste(devo.data$gs.code, devo.data$clutch, devo.data$larv.tank.id, devo.data$animal.id, sep = "_")
 
-# remove all but first six individuals from devo.data so that only those individuals are used to compute the mean
-devo.data = devo.data[devo.data$first.six == "yes" & is.na(devo.data$first.six)==FALSE,]
-
 
 # COMPILE DATASETS: Remove double-sampled individuals morph.data.juv  -----------------------
 # some weeks had an individual measured twice - for example, if the individual was measured for both morphometrics and ephys, but only one of these should be considered since it's a repeat measure on an (unknown) individual
-
-# only graph certain weeks (0, 1-2, 4-6, 8-10, 12-14) and when individual not measured twice within that week
-morph.data.juv = morph.data.juv[morph.data.juv$post.mm.weeks != "5-7" & morph.data.juv$post.mm.weeks != "11-12",]
-morph.data.juv = morph.data.juv[morph.data.juv$repeat.measure == "no",]
-
 
 # COMPILE DATASETS: Combine morph.data.mm and morph.data.juv  -----------------------
 morph.data.mm.juv <- rbind(morph.data.mm[ , c("date.measured",
@@ -117,13 +122,17 @@ morph.data.mm.juv <- rbind(morph.data.mm[ , c("date.measured",
                                              "notes.collection",
                                              "unique.id")])
 
+# COMPILE DATASETS: Add Developmental Data (mean days to forelimb) to morph.data.mm -----------------------
+# create column to store the developmental data
+morph.data.mm$days.forelimb = NA
+
+# fill developmental data column - average mean.days.forelimb for each juvenile tank
+for(i in 1:length(unique(morph.data.mm$unique.id.indiv))){
+  morph.data.mm$days.forelimb[morph.data.mm$unique.id.indiv == unique(morph.data.mm$unique.id.indiv)[i]] <- devo.data$days.forelimb[devo.data$unique.id.indiv ==  unique(morph.data.mm$unique.id.indiv)[i]]
+}
+
 
 # COMPILE DATASETS: Add Developmental Data (mean days to forelimb) to morph.data.juv -----------------------
-
-# remove overflow individuals and any NAs that have been introduced
-morph.data.mm.juv = morph.data.mm.juv[morph.data.mm.juv$treatment != "overflow",]
-morph.data.mm.juv = morph.data.mm.juv[is.na(morph.data.mm.juv$juv.tank.id) == FALSE,]
-
 # create column to store the developmental data
 morph.data.mm.juv$mean.days.forelimb = NA
 
@@ -137,11 +146,11 @@ morph.data.mm.juv$devo.cat = NA
 
 for(i in 1:length(unique(morph.data.mm.juv$unique.id))){
   
-  if(morph.data.mm.juv$mean.days.forelimb[morph.data.mm.juv$unique.id == unique(morph.data.mm.juv$unique.id)[i]][1] <= mean(morph.data.juv$mean.days.forelimb, na.rm = TRUE) - sd(morph.data.juv$mean.days.forelimb, na.rm = TRUE)){
+  if(morph.data.mm.juv$mean.days.forelimb[morph.data.mm.juv$unique.id == unique(morph.data.mm.juv$unique.id)[i]][1] <= mean(devo.data$days.forelimb, na.rm = TRUE) - sd(devo.data$days.forelimb, na.rm = TRUE)){
     morph.data.mm.juv$devo.cat[morph.data.mm.juv$unique.id == unique(morph.data.mm.juv$unique.id)[i]] = "early"
   }
   
-  if(morph.data.mm.juv$mean.days.forelimb[morph.data.mm.juv$unique.id == unique(morph.data.mm.juv$unique.id)[i]][1] >= mean(morph.data.juv$mean.days.forelimb, na.rm = TRUE) + sd(morph.data.juv$mean.days.forelimb, na.rm = TRUE)){
+  if(morph.data.mm.juv$mean.days.forelimb[morph.data.mm.juv$unique.id == unique(morph.data.mm.juv$unique.id)[i]][1] >= mean(devo.data$days.forelimb, na.rm = TRUE) + sd(devo.data$days.forelimb, na.rm = TRUE)){
     morph.data.mm.juv$devo.cat[morph.data.mm.juv$unique.id == unique(morph.data.mm.juv$unique.id)[i]] = "late"
   }
 }
@@ -152,17 +161,17 @@ morph.data.mm.juv$devo.cat[is.na(morph.data.mm.juv$devo.cat) == TRUE] = "mid"
 
 # model definition - using glmer with log-link function to keep mass in original units.
 
-glmer.full <- glmer(mass.g ~ treatment + scale(mean.days.forelimb) + (1|clutch:larv.tank.id), data = na.omit(morph.data.mm), na.action = na.omit, family = gaussian(link = 'log'), control=glmerControl(optimizer="bobyqa",optCtrl=list(maxfun=2e5)))
+glmer.full <- glmer(mass.g ~ treatment + scale(days.forelimb) + water.level.reduc + (1|clutch:larv.tank.id), data = morph.data.mm, na.action = na.omit, family = gaussian(link = 'log'), control=glmerControl(optimizer="bobyqa",optCtrl=list(maxfun=2e5)))
 
-glmer.notreat <- glmer(mass.g ~ water.level.reduc + scale(mean.days.forelimb) + (1|clutch:larv.tank.id), data = na.omit(morph.data.mm), na.action = na.omit, family = gaussian(link = 'log')) 
+glmer.notreat <- glmer(mass.g ~ water.level.reduc + scale(days.forelimb) + (1|clutch:larv.tank.id), data = morph.data.mm, na.action = na.omit, family = gaussian(link = 'log')) 
 
-glmer.noreduc <- glmer(mass.g ~ treatment + scale(mean.days.forelimb) + (1|clutch:larv.tank.id), data = na.omit(morph.data.mm), na.action = na.omit, family = gaussian(link = 'log'), control=glmerControl(optimizer="bobyqa",optCtrl=list(maxfun=2e5)))
+glmer.noreduc <- glmer(mass.g ~ treatment + scale(days.forelimb) + (1|clutch:larv.tank.id), data = morph.data.mm, na.action = na.omit, family = gaussian(link = 'log'), control=glmerControl(optimizer="bobyqa",optCtrl=list(maxfun=2e5)))
 
-glmer.nodays <- glmer(mass.g ~ treatment + water.level.reduc + (1|clutch:larv.tank.id), data = na.omit(morph.data.mm), na.action = na.omit, family = gaussian(link = 'log'), control=glmerControl(optimizer="bobyqa",optCtrl=list(maxfun=2e5)))
+glmer.nodays <- glmer(mass.g ~ treatment + water.level.reduc + (1|clutch:larv.tank.id), data = morph.data.mm, na.action = na.omit, family = gaussian(link = 'log'), control=glmerControl(optimizer="bobyqa",optCtrl=list(maxfun=2e5)))
 
-glmer.null<- glmer(mass.g ~ (1|clutch:juv.tank.id), data = na.omit(morph.data.mm), na.action = na.omit, family = gaussian(link = 'log'))
+glmer.null <- glmer(mass.g ~ (1|clutch:larv.tank.id), data = morph.data.mm, na.action = na.omit, family = gaussian(link = 'log'), control=glmerControl(optimizer="bobyqa",optCtrl=list(maxfun=2e5)))
 
-glm.full<- glm(mass.g ~ treatment + water.level.reduc + scale(mean.days.forelimb), data = na.omit(morph.data.mm), na.action = na.omit, family = gaussian(link = 'log'))
+glm.full<- glm(mass.g ~ treatment + water.level.reduc + scale(days.forelimb), data = morph.data.mm, na.action = na.omit, family = gaussian(link = 'log'))
 
 # model selection using likelihood ratio test
 anova(glmer.full, glmer.notreat, glmer.noreduc, glmer.nodays, glmer.null, test="Chisq")
@@ -220,32 +229,23 @@ confint(glmer.full)
 
 
 
-# ANALYZE DATA: Effect of rearing density and larval duration on mass at and aftermetamorphosis BUT NOW USING CATEGORY FOR LARVAL DURATION ---------------------
-#turn weeks into continuous rather than factored data
-morph.data.mm.juv$post.mm.weeks.num = NA
-morph.data.mm.juv$post.mm.weeks.num[morph.data.mm.juv$post.mm.weeks == "1-2"] = mean(1,2)
-morph.data.mm.juv$post.mm.weeks.num[morph.data.mm.juv$post.mm.weeks == "4-6"] = mean(4,6)
-morph.data.mm.juv$post.mm.weeks.num[morph.data.mm.juv$post.mm.weeks == "8-10"] = mean(8,10)
-morph.data.mm.juv$post.mm.weeks.num[morph.data.mm.juv$post.mm.weeks == "12-14"] = mean(12,14)
-morph.data.mm.juv$post.mm.weeks.num[morph.data.mm.juv$post.mm.weeks == "16-18"] = mean(16,18)
-morph.data.mm.juv$post.mm.weeks.num[morph.data.mm.juv$post.mm.weeks == "0"] = 0
-morph.data.mm.juv$post.mm.weeks.num = as.numeric(morph.data.mm.juv$post.mm.weeks.num)
+# ANALYZE DATA: Effect of rearing density and larval duration on mass at and after metamorphosis BUT NOW USING CATEGORY FOR LARVAL DURATION ---------------------
 
 # model definition - using glmer with log-link function to keep mass in original units.
 
-glmer.full <- glmer(mass.g ~ treatment + devo.cat*post.mm.weeks.num + (1|clutch:juv.tank.id), data = na.omit(morph.data.mm.juv), na.action = na.omit, family = gaussian(link = 'log'), control=glmerControl(optimizer="bobyqa",optCtrl=list(maxfun=2e5)))
+glmer.full <- glmer(mass.g ~ treatment + devo.cat*post.mm.weeks + (1|clutch:juv.tank.id), data = na.omit(morph.data.mm.juv), na.action = na.omit, family = gaussian(link = 'log'), control=glmerControl(optimizer="bobyqa",optCtrl=list(maxfun=2e5)))
 
-glmer.nointxn <- glmer(mass.g ~ treatment + devo.cat + post.mm.weeks.num + (1|clutch:juv.tank.id), data = na.omit(morph.data.mm.juv), na.action = na.omit, family = gaussian(link = 'log'), control=glmerControl(optimizer="bobyqa",optCtrl=list(maxfun=2e5)))
+glmer.nointxn <- glmer(mass.g ~ treatment + devo.cat + post.mm.weeks + (1|clutch:juv.tank.id), data = na.omit(morph.data.mm.juv), na.action = na.omit, family = gaussian(link = 'log'), control=glmerControl(optimizer="bobyqa",optCtrl=list(maxfun=2e5)))
 
-glmer.notreat <- glmer(mass.g ~ devo.cat + post.mm.weeks.num+ (1|clutch:juv.tank.id), data = na.omit(morph.data.mm.juv), na.action = na.omit, family = gaussian(link = 'log')) 
+glmer.notreat <- glmer(mass.g ~ devo.cat + post.mm.weeks+ (1|clutch:juv.tank.id), data = na.omit(morph.data.mm.juv), na.action = na.omit, family = gaussian(link = 'log')) 
 
 glmer.noweeks <- glmer(mass.g ~ treatment + devo.cat + (1|clutch:juv.tank.id), data = na.omit(morph.data.mm.juv), na.action = na.omit, family = gaussian(link = 'log'), control=glmerControl(optimizer="bobyqa",optCtrl=list(maxfun=2e5)))
 
-glmer.nodevo <- glmer(mass.g ~ treatment + post.mm.weeks.num + (1|clutch:juv.tank.id), data = na.omit(morph.data.mm.juv), na.action = na.omit, family = gaussian(link = 'log'), control=glmerControl(optimizer="bobyqa",optCtrl=list(maxfun=2e5)))
+glmer.nodevo <- glmer(mass.g ~ treatment + post.mm.weeks + (1|clutch:juv.tank.id), data = na.omit(morph.data.mm.juv), na.action = na.omit, family = gaussian(link = 'log'), control=glmerControl(optimizer="bobyqa",optCtrl=list(maxfun=2e5)))
 
 glmer.null<- glmer(mass.g ~ (1|clutch:juv.tank.id), data = na.omit(morph.data.mm.juv), na.action = na.omit, family = gaussian(link = 'log'))
 
-glm.full<- glm(mass.g ~ treatment + devo.cat + post.mm.weeks.num, data = na.omit(morph.data.mm.juv), na.action = na.omit, family = gaussian(link = 'log'))
+glm.full<- glm(mass.g ~ treatment + devo.cat + post.mm.weeks, data = na.omit(morph.data.mm.juv), na.action = na.omit, family = gaussian(link = 'log'))
 
 # model selection using likelihood ratio test
 anova(glmer.full, glmer.nointxn, glmer.notreat, glmer.noweeks, glmer.nodevo, glmer.null, test="Chisq")
@@ -316,7 +316,7 @@ confint(glmer.full)
 
 # ANALYZE DATA: Correlation between morphology metrics at and after metamorphosis -----------------------
 
-# create a dataframe of the correlation between each metric and mass for each rearing density and post-metamorphic age
+# create a dataframe of the correlation between each metric and mass for each rearing density and clutch and post-metamorphic age
 for(i in 1:length(unique(morph.data.mm.juv$post.mm.weeks))){
   for(j in 1:length(unique(morph.data.mm.juv$treatment))){
     temp1 = morph.data.mm.juv[morph.data.mm.juv$post.mm.weeks == unique(morph.data.mm.juv$post.mm.weeks)[i] & morph.data.mm.juv$treatment == unique(morph.data.mm.juv$treatment)[j],]
@@ -332,7 +332,7 @@ for(i in 1:length(unique(morph.data.mm.juv$post.mm.weeks))){
     
     temp2 = data.frame(metric = c("svl.mm", "r.forelimb.mm", "r.tibia.mm", "r.thigh.mm"),
                        treatment = unique(temp1$treatment)[1],
-                       post.mm.weeks = unique(morph.data.mm.juv$post.mm.weeks)[i],
+                       post.mm.weeks = unique(temp1$post.mm.weeks)[1],
                        type = c("svl", "forelimb", "tibia", "thigh"),
                        t = c(corr.svl$statistic, corr.forelimb$statistic, corr.tibia$statistic, corr.thigh$statistic),
                        df = c(corr.svl$parameter, corr.forelimb$parameter, corr.tibia$parameter, corr.thigh$parameter),
@@ -347,12 +347,10 @@ for(i in 1:length(unique(morph.data.mm.juv$post.mm.weeks))){
         morph.data.corr = rbind(morph.data.corr, temp2)
       }
     rm(temp1, temp2)
+    }
   }
-}
 
 # model definition
-glmer.full <- glmer(svl.mm ~ treatment + scale(mean.days.forelimb)*post.mm.weeks + (1|clutch:juv.tank.id), data = na.omit(morph.data.mm.juv), na.action = na.omit, family = gaussian(link = 'log'), control=glmerControl(optimizer="bobyqa",optCtrl=list(maxfun=2e5)))
-
 glm.full <- glm(estimate ~ treatment + post.mm.weeks + type , data = morph.data.corr, na.action = na.omit, family = gaussian(link = 'log'))
 glm.notreat <- glm(estimate ~ post.mm.weeks + type , data = morph.data.corr, na.action = na.omit, family = gaussian(link = 'log'))
 glm.notype <- glm(estimate ~ treatment + post.mm.weeks, data = morph.data.corr, na.action = na.omit, family = gaussian(link = 'log'))
@@ -366,8 +364,9 @@ check_model(glm.notype)
 
 # Final Model
 summary(glm.notype)
-Anova(lm.notype, type = "II") #gives information for each factor; should use type = "II" when interaction terms are NOT significant and thus not included in the final model; should use type = "III" when interaction terms are significant and thus included in the final model
-confint(lm.notype)
+Anova(glm.notype, type = "II") #gives information for each factor; should use type = "II" when interaction terms are NOT significant and thus not included in the final model; should use type = "III" when interaction terms are significant and thus included in the final model
+confint(glm.notype)
+
 
 # PLOT DATASETS: Effect of rearing density on morphometrics at and after metamorphosis for first six individuals from each tank -----------------------
 # option 1 = x-y plot with summarized mean and +/- 1 se for all metrics
@@ -523,8 +522,8 @@ ggarrange(plotlist = plotList.morph,
 
 morph.data.corr$metric = factor(morph.data.corr$metric, levels = c("svl.mm", "r.forelimb.mm", "r.tibia.mm", "r.thigh.mm"))
 
-ggplot(data = morph.data.corr, aes(y=estimate, x = metric, color = post.mm.weeks)) + 
-  facet_grid(rows = vars(treatment)) +
+ggplot(data = morph.data.corr, aes(y=estimate, x = post.mm.weeks, color = metric)) + 
+  #facet_grid(rows = vars(treatment)) +
   geom_point(position=position_jitterdodge(), size = 5, alpha = 1) +
   scale_color_manual(values=c(natparks.pals("BryceCanyon")[-1], natparks.pals("BryceCanyon")[-3])) +
   scale_fill_manual(values=c(natparks.pals("BryceCanyon")[-1], natparks.pals("BryceCanyon")[-3])) +
@@ -539,11 +538,35 @@ ggplot(data = morph.data.corr, aes(y=estimate, x = metric, color = post.mm.weeks
         panel.grid.minor = element_blank()) +
   expand_limits(y = 0) +
   scale_y_continuous(name = "correlation estimate") +
-  scale_x_discrete(name = "", labels = c("snout-vent", "forearm", "tibia", "thigh"))
+  scale_x_discrete(name = "post-metamorphic age")
+
+
+
+# PLOT DATASETS: Effect of developmental speed on morphometrics AT metamorphosis ---------------------
+ggplot(data = morph.data.mm, aes(y=mass.g, x = days.forelimb, color = treatment, fill = treatment)) + 
+  geom_point(size = 2.5, alpha = 0.7) +
+  stat_smooth(method="glm",
+              method.args = list(family = gaussian(link = 'log')), 
+              mapping = aes(color=as.factor(treatment)), 
+              se=T) +
+  scale_color_manual(values=natparks.pals("BryceCanyon")[-2]) +
+  scale_fill_manual(values=natparks.pals("BryceCanyon")[-2])+
+  theme_bw() +
+  theme(legend.title = element_blank(),
+        legend.text = element_text(size=20),
+        axis.text.x=element_text(size=14, color = "black"), 
+        axis.text.y=element_text(size=14, color = "black"), 
+        axis.title.x=element_text(size=14, color = "black"), 
+        axis.title.y = element_text(size=14),
+        panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank()) +
+  scale_y_continuous(name = "mass (g) at metamorphosis", n.breaks = 5) +
+  scale_x_continuous(name = "larval duration (days)", limits = c(45, 75), breaks = seq(45, 75, by = 5))
 
 
 
 # PLOT DATASETS: Effect of developmental speed on morphometrics at and after metamorphosis ---------------------
+
 # option 1 = x-y plot with summarized mean and +/- 1 se for all metrics
 
 # create empty list to fill with morphometrics plot

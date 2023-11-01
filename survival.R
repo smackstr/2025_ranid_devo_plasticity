@@ -27,7 +27,7 @@ survi.data.exp = survi.data.exp[survi.data.exp$gs.code == "RS",]
 survi.data.juv = survi.data.juv[survi.data.juv$gs.code == "RS",]
 devo.data = devo.data[devo.data$gs.code == "RS" & is.na(devo.data$gs.code) == FALSE,]
 
-# subset databases to only include weeks up to 18 (currently at 17 but need to change after October 23)
+# subset databases to only include weeks up to 18
 survi.data.juv = survi.data.juv[survi.data.juv$postmm.week <= 18 & is.na(survi.data.juv$postmm.week) == FALSE,]
 
 #change "control" to "low density" - called the low density treatment "CO for "control" during experiments because it has very different letters than "HD" for "high density", so was less likely to get confused. But technically it's a low density vs. high density comparison
@@ -36,25 +36,26 @@ survi.data.exp$treatment[survi.data.exp$treatment == "control"] = "low density"
 survi.data.juv$treatment[survi.data.juv$treatment == "control"] = "low density"
 devo.data$treatment[devo.data$treatment == "control"] = "low density"
 
+# subset devo dataset to only include first six individuals and non-overflow individuals
+devo.data = devo.data[devo.data$first.six == "yes",]
+devo.data = devo.data[devo.data$treatment != "overflow",]
+
 #change column classes
-survi.data.tad$treatment = factor(survi.data.tad$treatment)
+survi.data.tad$treatment = factor(survi.data.tad$treatment, levels = c("low density", "high density"))
 survi.data.tad$larv.tank.id = factor(survi.data.tad$larv.tank.id)
 
-survi.data.exp$treatment = factor(survi.data.exp$treatment)
+survi.data.exp$treatment = factor(survi.data.exp$treatment, levels = c("low density", "high density"))
 survi.data.exp$larv.tank.id = factor(survi.data.exp$larv.tank.id)
 
-survi.data.juv$treatment = factor(survi.data.juv$treatment)
+survi.data.juv$treatment = factor(survi.data.juv$treatment, levels = c("low density", "high density"))
 survi.data.juv$juv.tank.id = factor(survi.data.juv$juv.tank.id)
 
 devo.data$first.six = factor(devo.data$first.six, levels = c("yes", "no"))
-devo.data$treatment = factor(devo.data$treatment)
+devo.data$treatment = factor(devo.data$treatment, levels = c("low density", "high density"))
 devo.data$larv.tank.id = factor(devo.data$larv.tank.id)
 devo.data$juv.tank.id = factor(devo.data$juv.tank.id)
 devo.data$days.forelimb = as.integer(devo.data$days.forelimb)
 devo.data$days.forelimb.tail = as.integer(devo.data$days.forelimb.tail)
-
-# subset devo dataset to only include first six individuals
-devo.data = devo.data[devo.data$first.six == "yes",]
 
 # create unique tank id for survi.data.tad, survi.data.exp, survi.data.juv, and devo.data
 survi.data.tad$unique.id = paste(survi.data.tad$gs.code, survi.data.tad$clutch, survi.data.tad$larv.tank.id, sep = "_")
@@ -225,27 +226,25 @@ survi.data.juv.longform = temp3
 rm(temp3)
 
 
-# ANALYZE DATA: Effect of water level reduction (yes/no) on larval duration ---------------------
+# ANALYZE DATA: Effect of treatment on survival ---------------------
 # model definition - REML set to FALSE because comparing models with different fixed effects using hypothesis test (likelihood ratio test). REML assumes that all fixed effects are the same in comparison models but ML does not. setting random effect as juvenile tank id nested within clutch because want to control for correlation within those groups but not necessarily interested in defining the effect of being in those groups.
 
 # model definition - setting one random effect as larval tank id nested within clutch because want to control for correlation within those groups but not necessarily interested in defining the effect of being in those groups.
-glmm.full <- glmer(photo.num/(seed.num-leth.samp.num.cumul) ~ treatment*week + water.level.reduc + (1|clutch:larv.tank.id), data=survi.data.tad.exp, na.action = na.omit, family = binomial, weights = (seed.num-leth.samp.num.cumul))
+glmm.full <- glmer((photo.num+metamorph.num.cumul)/(seed.num-leth.samp.num.cumul) ~ treatment*as.numeric(week) + (1|clutch:larv.tank.id), data=survi.data.tad.exp, na.action = na.omit, family = binomial, weights = (seed.num-leth.samp.num.cumul))
 
-glmm.nointxn <- glmer(photo.num/(seed.num-leth.samp.num.cumul) ~ treatment + week + water.level.reduc + (1|clutch:larv.tank.id), data=survi.data.tad.exp, na.action = na.omit, family = binomial, weights = (seed.num-leth.samp.num.cumul))
+glmm.nointxn <- glmer((photo.num+metamorph.num.cumul)/(seed.num-leth.samp.num.cumul) ~ treatment + as.numeric(week) + (1|clutch:larv.tank.id), data=survi.data.tad.exp, na.action = na.omit, family = binomial, weights = (seed.num-leth.samp.num.cumul))
 
-glmm.notreat <- glmer(photo.num/(seed.num-leth.samp.num.cumul) ~ week + water.level.reduc + (1|clutch:larv.tank.id), data=survi.data.tad.exp, na.action = na.omit, family = binomial, weights = (seed.num-leth.samp.num.cumul))
+glmm.notreat <- glmer((photo.num+metamorph.num.cumul)/(seed.num-leth.samp.num.cumul) ~ as.numeric(week) + (1|clutch:larv.tank.id), data=survi.data.tad.exp, na.action = na.omit, family = binomial, weights = (seed.num-leth.samp.num.cumul))
 
-glmm.noweek <- glmer(photo.num/(seed.num-leth.samp.num.cumul) ~ treatment + water.level.reduc + (1|clutch:larv.tank.id), data=survi.data.tad.exp, na.action = na.omit, family = binomial, weights = (seed.num-leth.samp.num.cumul))
+glmm.noweek <- glmer((photo.num+metamorph.num.cumul)/(seed.num-leth.samp.num.cumul) ~ treatment + (1|clutch:larv.tank.id), data=survi.data.tad.exp, na.action = na.omit, family = binomial, weights = (seed.num-leth.samp.num.cumul))
 
-glmm.noreduc <- glmer(photo.num/(seed.num-leth.samp.num.cumul) ~ treatment + week + (1|clutch:larv.tank.id), data=survi.data.tad.exp, na.action = na.omit, family = binomial, weights = (seed.num-leth.samp.num.cumul))
+glmm.null <- glmer((photo.num+metamorph.num.cumul)/(seed.num-leth.samp.num.cumul) ~ (1|clutch:larv.tank.id), data=survi.data.tad.exp, na.action = na.omit, family = binomial, weights = (seed.num-leth.samp.num.cumul))
 
-glmm.null <- glmer(photo.num/(seed.num-leth.samp.num.cumul) ~ (1|clutch:larv.tank.id), data=survi.data.tad.exp, na.action = na.omit, family = binomial, weights = (seed.num-leth.samp.num.cumul))
-
-glm.full <- glm(photo.num/(seed.num-leth.samp.num.cumul) ~ treatment + week + water.level.reduc, data=survi.data.tad.exp, na.action = na.omit, family = binomial, weights = (seed.num-leth.samp.num.cumul))
+glm.full <- glm((photo.num+metamorph.num.cumul)/(seed.num-leth.samp.num.cumul) ~ treatment + as.numeric(week), data=survi.data.tad.exp, na.action = na.omit, family = binomial, weights = (seed.num-leth.samp.num.cumul))
 
 
 # model selection using likelihood ratio test; higher negative log-lik (closer to 0) provides better fit to the data 
-anova(glmm.nointxn, glmm.notreat, glmm.noweek, glmm.noreduc, glmm.null, test="Chisq")
+anova(glmm.nointxn, glmm.notreat, glmm.noweek, glmm.null, test="Chisq")
 
 # check if random effect significant - if model without the random effect is not significantly different than model with the random effect, then random effect isn't explaining the variance much. Even if not significant, should include in final model to more accurately account for covariance. higher negative log-lik (closer to 0) provides better fit to the data 
 anova(glmm.nointxn, glm.full, test="Chisq") 
@@ -340,36 +339,36 @@ VarCorr(glmm.full)
 
 
 
-# ANALYZE DATA: Effect of rearing density, larval duration, week, and juv tank id nested within clutch on % surviving individuals weekly ---------------------
+# ANALYZE DATA: Effect of rearing density, larval duration, week, and juv tank id nested within clutch on % surviving individuals weekly AFTER metamorphhosis---------------------
 
 # model definition - setting one random effect as juvenile tank id nested within clutch because want to control for correlation within those groups but not necessarily interested in defining the effect of being in those groups. Subsetting weeks 1-12 to represent breadth of data we are collecting, but will likely change this once we get another set of morphometric results for weeks 14-16
 
-glmm.full <- glmer(live.num/(seed.num-leth.samp.num) ~ treatment*mean.days.forelimb + postmm.week + (1|clutch:juv.tank.id), data=survi.data.juv[as.numeric(survi.data.juv$postmm.week) > 0,], na.action = na.omit, family = binomial, weights = (seed.num-leth.samp.num))
+glmm.full <- glmer(live.num/(seed.num-leth.samp.num) ~ treatment*scale(mean.days.forelimb) + postmm.week + (1|clutch:juv.tank.id), data=survi.data.juv[as.numeric(survi.data.juv$postmm.week) > 0,], na.action = na.omit, family = binomial, weights = (seed.num-leth.samp.num))
 
-glmm.nointxn <- glmer(live.num/(seed.num-leth.samp.num) ~ treatment + mean.days.forelimb + postmm.week + (1|clutch:juv.tank.id), data=survi.data.juv[as.numeric(survi.data.juv$postmm.week) > 0,], na.action = na.omit, family = binomial, weights = (seed.num-leth.samp.num))
+glmm.nointxn <- glmer(live.num/(seed.num-leth.samp.num) ~ treatment + scale(mean.days.forelimb) + postmm.week + (1|clutch:juv.tank.id), data=survi.data.juv[as.numeric(survi.data.juv$postmm.week) > 0,], na.action = na.omit, family = binomial, weights = (seed.num-leth.samp.num))
 
-glmm.notreat <- glmer(live.num/(seed.num-leth.samp.num) ~ mean.days.forelimb + postmm.week + (1|clutch:juv.tank.id), data=survi.data.juv[as.numeric(survi.data.juv$postmm.week) > 0,], na.action = na.omit, family = binomial, weights = (seed.num-leth.samp.num))
+glmm.notreat <- glmer(live.num/(seed.num-leth.samp.num) ~ scale(mean.days.forelimb) + postmm.week + (1|clutch:juv.tank.id), data=survi.data.juv[as.numeric(survi.data.juv$postmm.week) > 0,], na.action = na.omit, family = binomial, weights = (seed.num-leth.samp.num))
 
 glmm.nodays <- glmer(live.num/(seed.num-leth.samp.num) ~ treatment + postmm.week + (1|clutch:juv.tank.id), data=survi.data.juv[as.numeric(survi.data.juv$postmm.week) > 0,], na.action = na.omit, family = binomial, weights = (seed.num-leth.samp.num))
 
-glmm.noweek <- glmer(live.num/(seed.num-leth.samp.num) ~ treatment + mean.days.forelimb + (1|clutch:juv.tank.id), data=survi.data.juv[as.numeric(survi.data.juv$postmm.week) > 0,], na.action = na.omit, family = binomial, weights = (seed.num-leth.samp.num))
+glmm.noweek <- glmer(live.num/(seed.num-leth.samp.num) ~ treatment + scale(mean.days.forelimb) + (1|clutch:juv.tank.id), data=survi.data.juv[as.numeric(survi.data.juv$postmm.week) > 0,], na.action = na.omit, family = binomial, weights = (seed.num-leth.samp.num))
 
 glmm.null <- glmer(live.num/(seed.num-leth.samp.num) ~ (1|clutch:juv.tank.id), data=survi.data.juv[as.numeric(survi.data.juv$postmm.week) > 0,], na.action = na.omit, family = binomial, weights = (seed.num-leth.samp.num))
 
-glm.full <- glm(live.num/(seed.num-leth.samp.num) ~ treatment*mean.days.forelimb + postmm.week, data=survi.data.juv[as.numeric(survi.data.juv$postmm.week) > 0,], na.action = na.omit, family = binomial, weights = (seed.num-leth.samp.num))
+glm.full <- glm(live.num/(seed.num-leth.samp.num) ~ treatment + scale(mean.days.forelimb) + postmm.week, data=survi.data.juv[as.numeric(survi.data.juv$postmm.week) > 0,], na.action = na.omit, family = binomial, weights = (seed.num-leth.samp.num))
 
 
 # model selection using likelihood ratio test; higher negative log-lik (closer to 0) provides better fit to the data 
 anova(glmm.full, glmm.nointxn, glmm.notreat, glmm.nodays, glmm.noweek, glmm.null, test="Chisq")
 
 # check if random effect significant - if model without the random effect is not significantly different than model with the random effect, then random effect isn't explaining the variance much. Even if not significant, should include in final model to more accurately account for covariance. higher negative log-lik (closer to 0) provides better fit to the data 
-anova(glmm.full, glm.full, test="Chisq") 
+anova(glmm.nointxn, glm.full, test="Chisq") 
 
 # Final Model
 Anova(glmm.nointxn, type = "II") #gives information for each factor; should use type = "II" when interaction terms are NOT significant and thus not included in the final model; should use type = "III" when interaction terms are significant and thus included in the final model
 summary(glmm.nointxn)
-exp(fixef(glmm.nointxn)) #returns odds ratis instead of logit scale
-exp(confint(glmm.nointxn)) #returns odds ratis instead of logit scale
+exp(fixef(glmm.nointxn)) #returns odds ratios instead of logit scale
+exp(confint(glmm.nointxn)) #returns odds ratios instead of logit scale
 ranef(glmm.nointxn)
 VarCorr(glmm.nointxn)
 
