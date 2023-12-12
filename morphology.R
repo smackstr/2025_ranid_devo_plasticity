@@ -672,11 +672,11 @@ lmm.full <- lmer(mass.g ~ treatment*scale(days.forelimb) + water.level.reduc + (
 
 lmm.full.log <- lmer(log(mass.g) ~ treatment*scale(days.forelimb) + water.level.reduc + (1|clutchtank), data = morph.data.mm, na.action = na.omit, REML = FALSE)
 
-lmm.nointxn <- lmer(mass.g ~ treatment + scale(days.forelimb) + water.level.reduc + (1|clutch:larv.tank.id), data = morph.data.mm, na.action = na.omit, REML = FALSE)
+lmm.nointxn <- lmer(mass.g ~ treatment + scale(days.forelimb) + water.level.reduc + (1|clutchtank), data = morph.data.mm, na.action = na.omit, REML = FALSE)
 
-lmm.nointxn.log <- lmer(log(mass.g) ~ treatment + scale(days.forelimb) + water.level.reduc + (1|clutch:larv.tank.id), data = morph.data.mm, na.action = na.omit, REML = FALSE)
+lmm.nointxn.log <- lmer(log(mass.g) ~ treatment + scale(days.forelimb) + water.level.reduc + (1|clutchtank), data = morph.data.mm, na.action = na.omit, REML = FALSE)
 
-lmm.null <- lmer(log(mass.g) ~ (1|clutch:larv.tank.id), data = morph.data.mm, na.action = na.omit, REML = FALSE)
+lmm.null <- lmer(log(mass.g) ~ (1|clutchtank), data = morph.data.mm, na.action = na.omit, REML = FALSE)
 
 # model selection using likelihood ratio test
 anova(lmm.full, lmm.nointxn, lmm.null, test="Chisq")
@@ -2344,7 +2344,7 @@ ggarrange(plot.morph1, plot.morph2, plot.morph3, plot.morph4,
           font.label = list(size = 20, color = "black"))
 
 ggarrange(plot.morph.tad.tl.ld, plot.morph.tad.tl.hd, 
-          plot.morph.tad.bl.ld, plot.morph.tad.bl.hd, 
+          #plot.morph.tad.bl.ld, plot.morph.tad.bl.hd, 
           ncol = 2,
           nrow = 2,
           common.legend = FALSE,

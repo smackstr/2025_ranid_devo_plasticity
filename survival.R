@@ -284,6 +284,9 @@ temp3 = data.frame(postmm.week = rep(temp$postmm.week, temp$seed.num - temp$leth
                    treatment.code = rep(temp$treatment.code, temp$seed.num - temp$leth.samp.num),
                    juv.tank.id = rep(temp$juv.tank.id, temp$seed.num - temp$leth.samp.num),
                    mean.days.forelimb = rep(temp$mean.days.forelimb, temp$seed.num - temp$leth.samp.num),
+                   mean.mm.mass.g = rep(temp$mean.mm.mass.g, temp$seed.num - temp$leth.samp.num),
+                   devo.cat = rep(temp$devo.cat, temp$seed.num - temp$leth.samp.num),
+                   unique.id = rep(temp$unique.id, temp$seed.num - temp$leth.samp.num),
                    status = NA
 )
 temp3$status[0:(temp$live.num)] = 1
@@ -301,6 +304,9 @@ for(i in 2:length(unique(survi.data.juv$unique.id.wk))){
                      treatment.code = rep(temp$treatment.code, temp$seed.num - temp$leth.samp.num),
                      juv.tank.id = rep(temp$juv.tank.id, temp$seed.num - temp$leth.samp.num),
                      mean.days.forelimb = rep(temp$mean.days.forelimb, temp$seed.num - temp$leth.samp.num),
+                     mean.mm.mass.g = rep(temp$mean.mm.mass.g, temp$seed.num - temp$leth.samp.num),
+                     devo.cat = rep(temp$devo.cat, temp$seed.num - temp$leth.samp.num),
+                     unique.id = rep(temp$unique.id, temp$seed.num - temp$leth.samp.num),
                      status = NA
   )
   temp2$status[0:(temp$live.num)] = 1
@@ -317,7 +323,7 @@ devo.data$clutchtank = factor(paste(devo.data$clutch, devo.data$larv.tank.id, se
 survi.data.exp$clutchtank = factor(paste(survi.data.exp$clutch, survi.data.exp$larv.tank.id, sep = "_"))
 survi.data.tad$clutchtank = factor(paste(survi.data.tad$clutch, survi.data.tad$larv.tank.id, sep = "_"))
 survi.data.tad.exp$clutchtank = factor(paste(survi.data.tad.exp$clutch, survi.data.tad.exp$larv.tank.id, sep = "_"))
-survi.data.juv$clutchtank = factor(paste(survi.data.juv$clutch, survi.data.juv$larv.tank.id, sep = "_"))
+survi.data.juv$clutchtank = factor(paste(survi.data.juv$clutch, survi.data.juv$juv.tank.id, sep = "_"))
 survi.data.tad.exp.longform$clutchtank = factor(paste(survi.data.tad.exp.longform$clutch, survi.data.tad.exp.longform$larv.tank.id, sep = "_"))
 survi.data.juv.longform$clutchtank = factor(paste(survi.data.juv.longform$clutch, survi.data.juv.longform$larv.tank.id, sep = "_"))
 
@@ -378,7 +384,7 @@ testDispersion(glmm.full.probit) #tests for over- and under-dispersion
 testDispersion(glmm.nointxn) #tests for over- and under-dispersion
 testDispersion(glmm.nointxn.slopes) #tests for over- and under-dispersion
 
-#examine the plots for for each tank, treatment, and clutch, regress metamorphosis proportion by week using linear and then using linear and you can see how much beter the glm is and how it does look like distinct slopes for high density vs low density
+#examine the plots for for each tank, treatment, and clutch, regress survival proportion by week using linear and then using linear and you can see how much beter the glm is and how it does look like distinct slopes for high density vs low density
 ggplot(survi.data.tad.exp, 
        aes(x = week, y = prop.survi, group = clutchtank, color = clutchtank)) +
   #geom_line() +
@@ -434,92 +440,85 @@ summary(final.mod)
 predicted.df.prop.survi <- ggeffects::ggpredict(final.mod, terms = c("week[all]", "treatment"), type = "random", interval = "confidence")
 
 
-# ANALYZE DATA: Cox Proportional Hazard Model - Effect of rearing density, week, and larv tank id nested within clutch on likelihood of survival weekly and by close-out of tanks ---------------------
-
-# model definition - setting one random effect as week and one random effect as larval tank id nested within clutch because want to control for correlation within those groups but not necessarily interested in defining the effect of being in those groups.
-cox.model.mixed.full <- coxme(Surv(status) ~ treatment*week + (1|clutchtank), data=survi.data.tad.exp.longform)
-
-cox.model.mixed.nointxn <- coxme(Surv(status) ~ treatment + week + (1|clutchtank), data=survi.data.tad.exp.longform)
-
-cox.model.mixed.null <- coxme(Surv(status) ~ (1|clutchtank), data=survi.data.tad.exp.longform)
-
-# model selection using AIC
-anova(cox.model.mixed.full, cox.model.mixed.full.poly3, cox.model.mixed.nointxn, cox.model.mixed.nointxn.poly3, cox.model.mixed.null)
-
-# Final Model
-summary(cox.model.mixed.full)
-exp(confint(cox.model.mixed.full))
-VarCorr(cox.model.mixed.full)
-
-
-
-# ANALYZE DATA: Cox Proportional Hazard Model - Effect of rearing density, larval duration, week, and juv tank id nested within clutch on likelihood of survival weekly ---------------------
-
-# model definition - setting one random effect as week and one random effect as juvenile tank id nested within clutch because want to control for correlation within those groups but not necessarily interested in defining the effect of being in those groups. Subsetting weeks 1-12 to represent breadth of data we are collecting, but will likely change this once we get another set of morphometric results for weeks 14-16
-cox.model.mixed.full <- coxme(Surv(status) ~ treatment*mean.days.forelimb + (1|postmm.week) + (1|clutch/juv.tank.id), data=survi.data.juv.longform[survi.data.juv.longform$postmm.week < 13 & survi.data.juv.longform$postmm.week > 0,])
-cox.model.mixed.nointxn <- coxme(Surv(status) ~ treatment + mean.days.forelimb + (1|postmm.week) + (1|clutch/juv.tank.id), data=survi.data.juv.longform[survi.data.juv.longform$postmm.week < 13 & survi.data.juv.longform$postmm.week > 0,])
-cox.model.mixed.notreat <- coxme(Surv(status) ~ mean.days.forelimb + (1|postmm.week) + (1|clutch/juv.tank.id), data=survi.data.juv.longform[survi.data.juv.longform$postmm.week < 13 & survi.data.juv.longform$postmm.week > 0,])
-cox.model.mixed.nodays <- coxme(Surv(status) ~ treatment + (1|postmm.week) + (1|clutch/juv.tank.id), data=survi.data.juv.longform[survi.data.juv.longform$postmm.week < 13 & survi.data.juv.longform$postmm.week > 0,])
-cox.model.mixed.noweek <- coxme(Surv(status) ~ treatment + mean.days.forelimb + (1|clutch/juv.tank.id), data=survi.data.juv.longform[survi.data.juv.longform$postmm.week < 13 & survi.data.juv.longform$postmm.week > 0,])
-cox.model.mixed.notank <- coxme(Surv(status) ~ treatment + mean.days.forelimb + (1|postmm.week), data=survi.data.juv.longform[survi.data.juv.longform$postmm.week < 13 & survi.data.juv.longform$postmm.week > 0,])
-cox.model.mixed.null <- coxme(Surv(status) ~ (1|postmm.week) + (1|clutch/juv.tank.id), data=survi.data.juv.longform[survi.data.juv.longform$postmm.week < 13 & survi.data.juv.longform$postmm.week > 0,])
-cox.model <- coxph(Surv(status) ~ treatment + mean.days.forelimb, data=survi.data.juv.longform[survi.data.juv.longform$postmm.week < 13 & survi.data.juv.longform$postmm.week > 0,])
-
-# model selection using likelihood ratio test; higher negative log-lik (closer to 0) provides better fit to the data 
-anova(cox.model.mixed.full, cox.model.mixed.nointxn, cox.model.mixed.notreat, cox.model.mixed.nodays, cox.model.mixed.noweek, cox.model.mixed.notank, cox.model.mixed.null, test="Chisq")
-
-# check if random effect significant - if model without the random effect is not significantly different than model with the random effect, then random effect isn't explaining the variance much. Even if not significant, should include in final model to more accurately account for covariance. higher negative log-lik (closer to 0) provides better fit to the data 
-anova(cox.model.mixed.full, cox.model, test="Chisq") 
-
-# Final Model
-Anova(cox.model.mixed.notreat, type = "II")
-summary(cox.model.mixed.notreat)
-confint(cox.model.mixed.notreat)
-VarCorr(cox.model.mixed.notreat)
-
-
-
 # ANALYZE DATA: Effect of rearing density, larval duration, week, mean mass at metamorphosis, and juv tank id nested within clutch on % surviving individuals weekly AFTER metamorphhosis---------------------
 
-# model definition - setting one random effect as juvenile tank id nested within clutch because want to control for correlation within those groups but not necessarily interested in defining the effect of being in those groups. since experimental study, not testing the inclusion or exclusion of fixed effects, but rather assessing what interactions among fixed effects to include in final model
+#examine the plots for for each tank, treatment, and clutch, regress survival proportion by week using linear and then using linear and you can see how much beter the glm is and how it does look like distinct slopes for high density vs low density
+ggplot(survi.data.juv, 
+       aes(x = postmm.week, y = prop.survi, group = clutchtank, color = clutchtank)) +
+  #geom_line() +
+  stat_summary(fun.y=mean, geom="line", size = 0.5, aes(color = clutchtank, group = clutchtank)) +
+  stat_summary(fun.y=mean, geom="point", color = "black", pch=21, size=2, aes(fill=clutchtank)) +
+  facet_wrap(~treatment) +
+  geom_smooth(data = survi.data.juv, method = "lm", aes(x=postmm.week, y=prop.survi), inherit.aes = F, se = F, color="black") +
+  geom_smooth(data = survi.data.juv, method = "glm", method.args = list(family = "binomial"), aes(x=postmm.week, y=prop.survi), inherit.aes = F, se = F, color="black")
 
-glmm.full <- glmer(live.num/(seed.num-leth.samp.num) ~ treatment*scale(mean.days.forelimb)*scale(mean.mm.mass.g) + postmm.week + (1|clutch:juv.tank.id), data=survi.data.juv[as.numeric(survi.data.juv$postmm.week) > 0,], na.action = na.omit, family = binomial, weights = (seed.num-leth.samp.num))
+ggplot() +
+  stat_summary(data = survi.data.juv, fun.y=mean, geom="line", size = 0.5, alpha = 0.5, aes(x = postmm.week, y = prop.survi, color = treatment, group = clutchtank)) +
+  stat_summary(data = survi.data.juv, fun.y=mean, geom="point", color = "black", pch=21, alpha = 0.8, size=2, aes(x = postmm.week, y = prop.survi, fill=treatment)) +
+  #geom_smooth(data = survi.data.tad.exp, method = "lm", aes(x=week, y=prop.seed.forelimb), inherit.aes = F, se = F, color="black")
+  geom_smooth(data = survi.data.juv, method = "glm", method.args = list(family = "binomial"(link = "logit")), aes(x=postmm.week, y=prop.survi, color = treatment, group = treatment, linetype = treatment), inherit.aes = F, se = F, size = 1.5) +
+  scale_x_continuous(limits = c(1,11), breaks = seq(1,11,1))
 
-glmm.intxn1 <- glmer(live.num/(seed.num-leth.samp.num) ~ treatment + scale(mean.days.forelimb)*scale(mean.mm.mass.g) + postmm.week + (1|clutch:juv.tank.id), data=survi.data.juv[as.numeric(survi.data.juv$postmm.week) > 0,], na.action = na.omit, family = binomial, weights = (seed.num-leth.samp.num))
+# model definition - setting one random effect as juvenile tank id nested within clutch because want to control for correlation within those groups but not necessarily interested in defining the effect of being in those groups. since experimental study, not testing the inclusion or exclusion of fixed effects, but rather assessing what interactions among fixed effects to include in final model.Note some models estimate intercept and slope, separately, by random factor: (1 | random.factor) + (0 + fixed.factor | random.factor). An alternative way to write this is using the double-bar notation fixed.factor + (fixed.factor || random.factor).
+glmm.full.01 <- glmer(status ~ treatment*scale(mean.days.forelimb)*scale(mean.mm.mass.g) + postmm.week + (1|clutchtank), data=survi.data.juv.longform, na.action = na.omit, family = binomial, control=glmerControl(optimizer="bobyqa",optCtrl=list(maxfun=2e5)))
 
-glmm.intxn2 <- glmer(live.num/(seed.num-leth.samp.num) ~ treatment*scale(mean.days.forelimb) + scale(mean.mm.mass.g) + postmm.week + (1|clutch:juv.tank.id), data=survi.data.juv[as.numeric(survi.data.juv$postmm.week) > 0,], na.action = na.omit, family = binomial, weights = (seed.num-leth.samp.num))
+glmm.nointxn.01.1 <- glmer(status ~ treatment*scale(mean.days.forelimb) + mean.mm.mass.g + postmm.week +  (1|clutchtank), data=survi.data.juv.longform, na.action = na.omit, family = binomial, control=glmerControl(optimizer="bobyqa",optCtrl=list(maxfun=2e5)))
 
-glmm.intxn3 <- glmer(live.num/(seed.num-leth.samp.num) ~ treatment*scale(mean.mm.mass.g) + scale(mean.days.forelimb) + postmm.week + (1|clutch:juv.tank.id), data=survi.data.juv[as.numeric(survi.data.juv$postmm.week) > 0,], na.action = na.omit, family = binomial, weights = (seed.num-leth.samp.num))
+# glmm.nointxn.01.slopes <- glmer(status ~ treatment + week + water.level.reduc + (week||clutchtank), data=survi.data.tad.exp.longform, na.action = na.omit, family = binomial, control=glmerControl(optimizer="bobyqa",optCtrl=list(maxfun=2e5)))
 
-glmm.nointxn <- glmer(live.num/(seed.num-leth.samp.num) ~ treatment + scale(mean.days.forelimb) + postmm.week + scale(mean.mm.mass.g) + (1|clutch:juv.tank.id), data=survi.data.juv[as.numeric(survi.data.juv$postmm.week) > 0,], na.action = na.omit, family = binomial, weights = (seed.num-leth.samp.num))
+glmm.nointxn.01.2 <- glmer(status ~ treatment + scale(mean.days.forelimb)*mean.mm.mass.g + postmm.week +  (1|clutchtank), data=survi.data.juv.longform, na.action = na.omit, family = binomial, control=glmerControl(optimizer="bobyqa",optCtrl=list(maxfun=2e5)))
 
-glmm.null <- glmer(live.num/(seed.num-leth.samp.num) ~ (1|clutch:juv.tank.id), data=survi.data.juv[as.numeric(survi.data.juv$postmm.week) > 0,], na.action = na.omit, family = binomial, weights = (seed.num-leth.samp.num))
+glmm.nointxn.01.3 <- glmer(status ~ treatment*mean.mm.mass.g + scale(mean.days.forelimb) + postmm.week +  (1|clutchtank), data=survi.data.juv.longform, na.action = na.omit, family = binomial, control=glmerControl(optimizer="bobyqa",optCtrl=list(maxfun=2e5)))
 
+glmm.nointxn.01 <- glmer(status ~ treatment + postmm.week + scale(mean.days.forelimb) + mean.mm.mass.g + (1|clutchtank), data=survi.data.juv.longform, na.action = na.omit, family = binomial, control=glmerControl(optimizer="bobyqa",optCtrl=list(maxfun=2e5)))
 
-# model selection using likelihood ratio test; higher negative log-lik (closer to 0) provides better fit to the data 
-anova(glmm.full, glmm.intxn1, glmm.intxn2, glmm.intxn3, glmm.nointxn, glmm.null, test="Chisq")
+glmm.null <- glmer(status ~ (1|clutchtank), data=survi.data.juv.longform, na.action = na.omit, family = binomial, control=glmerControl(optimizer="bobyqa",optCtrl=list(maxfun=2e5)))
 
-# Final Model
-summary(glmm.nointxn)
-exp(fixef(glmm.nointxn)) #returns odds ratios instead of logit scale
-exp(confint(glmm.nointxn)) #returns odds ratios instead of logit scale
-ranef(glmm.nointxn)
-VarCorr(glmm.nointxn)
+#model selection out of 0/1 logit models
+anova(glmm.full.01, glmm.nointxn.01.1, glmm.nointxn.01.2, glmm.nointxn.01.3, glmm.nointxn.01, glmm.null)
+anova(glmm.full.01, glmm.full.01.sigmoid, glmm.null)
 
-# check assumptions
-simulationOutput <- simulateResiduals(fittedModel = glm.nointxn, plot = T) #provides summary of model fitting tests
-
-testDispersion(simulationOutput) #tests for over- and under-dispersion
-testZeroInflation(simulationOutput) #tests if more zeroes than expected
-testCategorical(simulationOutput, catPred = survi.data.tad.exp$treatment) #tests residuals against a categorical predictor to assess homogeneity of variance; heteroscedasticity means that there is a systematic dependency of the dispersion / variance on another variable in the model...it means that the level of over/underdispersion depends on another parameter.
-testOutliers(simulationOutput, type = 'bootstrap')
+#doublecheck assumptions
+simulationOutput <- simulateResiduals(fittedModel = glmm.full.01, quantreg=T, plot = T) #provides summary of model fitting tests
+testOutliers(simulationOutput, type = 'bootstrap') #recommended re-test with type=outliers indicates no issues
+plotResiduals(simulationOutput, form = survi.data.juv.longform$treatment)
+plotResiduals(simulationOutput, form = survi.data.juv.longform$postmm.week)
+testDispersion(simulationOutput)
 
 
-# # create dataframe of predicted values that can be plotted on ggplot later
-# predictions using ggeffects (suggested by Susan Durham)
-glmm.nointxn <- glmer(prop.survi ~ treatment + scale(mean.days.forelimb) + postmm.week + scale(mean.mm.mass.g) + (1|clutch:juv.tank.id), data=survi.data.juv[as.numeric(survi.data.juv$postmm.week) > 0,], na.action = na.omit, family = binomial, weights = (seed.num-leth.samp.num))
+# Final Model:
+final.mod = glmm.full.01
+Anova(final.mod, type = "II")
+summary(final.mod)
+cov2cor(vcov(final.mod)) #assess correlation matrix between fixed effects
 
-predicted.df.surv <- ggpredict(glmm.nointxn, terms = c("postmm.week", "mean.mm.mass.g[all]"), type = "random", interval = "confidence") 
+# create dataframe of predicted values that can be plotted on ggplot later
+predicted.df.juv.prop.survi <- ggeffects::ggpredict(final.mod, terms = c("postmm.week[all]", "treatment"), type = "random", interval = "confidence")
+
+# significant three-way interaction suggests mean days forelimb and mean mm size affect survivorship differently in high and low density so splitting dataset into two different analysis based on treatment to understand better
+glmm.full.01.ld <- glmer(status ~ scale(mean.days.forelimb)*mean.mm.mass.g + postmm.week + (1|clutchtank), data=survi.data.juv.longform[survi.data.juv.longform$treatment == "low density",], na.action = na.omit, family = binomial, control=glmerControl(optimizer="bobyqa",optCtrl=list(maxfun=2e5)))
+
+glmm.nointxn.01.ld <- glmer(status ~ scale(mean.days.forelimb) + mean.mm.mass.g + postmm.week + (1|clutchtank), data=survi.data.juv.longform[survi.data.juv.longform$treatment == "low density",], na.action = na.omit, family = binomial, control=glmerControl(optimizer="bobyqa",optCtrl=list(maxfun=2e5)))
+
+glmm.null.ld <- glmer(status ~ (1|clutchtank), data=survi.data.juv.longform[survi.data.juv.longform$treatment == "low density",], na.action = na.omit, family = binomial, control=glmerControl(optimizer="bobyqa",optCtrl=list(maxfun=2e5)))
+
+glmm.full.01.hd <- glmer(status ~ scale(mean.days.forelimb)*mean.mm.mass.g + postmm.week + (1|clutchtank), data=survi.data.juv.longform[survi.data.juv.longform$treatment == "high density",], na.action = na.omit, family = binomial, control=glmerControl(optimizer="bobyqa",optCtrl=list(maxfun=2e5)))
+
+glmm.nointxn.01.hd <- glmer(status ~ scale(mean.days.forelimb) + mean.mm.mass.g + postmm.week + (1|clutchtank), data=survi.data.juv.longform[survi.data.juv.longform$treatment == "high density",], na.action = na.omit, family = binomial, control=glmerControl(optimizer="bobyqa",optCtrl=list(maxfun=2e5)))
+
+glmm.null.hd <- glmer(status ~ (1|clutchtank), data=survi.data.juv.longform[survi.data.juv.longform$treatment == "high density",], na.action = na.omit, family = binomial, control=glmerControl(optimizer="bobyqa",optCtrl=list(maxfun=2e5)))
+
+anova(glmm.full.01.ld, glmm.nointxn.01.ld, glmm.null.ld)
+anova(glmm.full.01.hd, glmm.nointxn.01.hd, glmm.null.hd)
+
+final.mod.ld = glmm.nointxn.01.ld
+final.mod.hd = glmm.full.01.hd
+
+Anova(final.mod.ld, type = 'II')
+Anova(final.mod.hd, type = 'II')
+
+summary(final.mod.ld)
+summary(final.mod.hd) #at larger sizes, mean days forelimb has less of a negative effect
 
 
 # ANALYZE DATA: Effect of rearing density, larval duration, week, and juv tank id nested within clutch on % surviving individuals weekly BUT NOW USING CATEGORY FOR SIZE ---------------------
@@ -644,21 +643,21 @@ ggplot() +
   scale_x_continuous(name = "pre-metamorphic age (weeks)", breaks = seq(0, 12, by = 1))
 
 
-# PLOT DATASETS: Effect of mean size at metamorphosis on survival after metamorphosis ---------------------
+# PLOT DATASETS: Effect of predictors on survival after metamorphosis ---------------------
 
 # x-y plot with smoothed binomial curve WITHOUT clutch
-ggplot() + 
-  geom_ribbon(data = predicted.df.surv,
-              alpha = 0.8,
-              mapping = aes(x = x, y = predicted, ymin = conf.low, ymax = conf.high, fill=group), 
-              show.legend = FALSE) +
-  geom_jitter(width = 0.5, size = 2.5, alpha = 0.7, data = survi.data.juv, aes(y=prop.survi, x = as.numeric(postmm.week), color = mean.mm.mass.g)) +
-  geom_line(data = predicted.df.surv, size = 1, color = "black", aes(x = x, y = predicted, linetype=factor(group, levels = c("large", "med", "small"))), show.legend = FALSE) +
+masseffect <- ggplot() + 
+  facet_grid(cols=vars(treatment)) + 
+  geom_point(size = 1, alpha = 0.7, data = survi.data.juv, aes(y=prop.survi, x = as.numeric(postmm.week), group=clutchtank, color=mean.mm.mass.g)) +
+  geom_smooth(se = F, size = 0.8, alpha = 0.7, method = "glm", method.args = list(family = "binomial"), data = survi.data.juv, aes(y=prop.survi, x = as.numeric(postmm.week), color = mean.mm.mass.g, group=clutchtank)) +
+  # geom_line(data = predicted.df.juv.prop.survi,
+  #           alpha = 1,
+  #           size = 1.8,
+  #           mapping = aes(x = x, y = predicted, linetype = group), color = "darkred", show.legend = TRUE) +
   scale_color_gradient(low = "gray85", high = "gray1") +
   scale_fill_manual(values = c("gray1", "gray40", "gray85")) +
-  scale_linetype_manual(values=c(1,2,3)) +
+  scale_linetype_manual(values=c(1,3)) +
   theme_bw() +
-  labs(linetype="metamorphic mass category", color="metamorphic mass (g)") +
   theme(legend.position = c(0.98, 0.98),
         legend.justification = c("right", "top"),
         legend.title = element_text(size=10),
@@ -671,6 +670,74 @@ ggplot() +
         panel.grid.minor = element_blank()) +
   scale_y_continuous(name = "percent juvenile survivorship", labels = c(0,25,50,75,100)) + #binomial can only be fit 0-1 but relabeled to be percent rather than proportion survival
   scale_x_continuous(name = "post-metamorphic age (week)", breaks = seq(1, 18, by = 1))
+
+dayseffect <- ggplot() + 
+  facet_grid(cols=vars(treatment)) + 
+  geom_point(size = 1, alpha = 0.7, data = survi.data.juv, aes(y=prop.survi, x = as.numeric(postmm.week), group=clutchtank, color=mean.days.forelimb)) +
+  geom_smooth(se = F, size = 0.8, alpha = 0.7, method = "glm", method.args = list(family = "binomial"), data = survi.data.juv, aes(y=prop.survi, x = as.numeric(postmm.week), color = mean.days.forelimb, group=clutchtank)) +
+  # geom_line(data = predicted.df.juv.prop.survi,
+  #           alpha = 1,
+  #           size = 1.8,
+  #           mapping = aes(x = x, y = predicted, linetype = group), color = "darkred", show.legend = TRUE) +
+  scale_color_gradient(low = "gray1", high = "gray85") +
+  scale_fill_manual(values = c("gray85", "gray40", "gray1")) +
+  scale_linetype_manual(values=c(1,3)) +
+  theme_bw() +
+  theme(legend.position = c(0.98, 0.98),
+        legend.justification = c("right", "top"),
+        legend.title = element_text(size=10),
+        legend.text = element_text(size=10),
+        axis.text.x=element_text(size=12, color = "black"), 
+        axis.text.y=element_text(size=12, color = "black"), 
+        axis.title.x=element_text(size=12, color = "black"), 
+        axis.title.y = element_text(size=12),
+        panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank()) +
+  scale_y_continuous(name = "percent juvenile survivorship", labels = c(0,25,50,75,100)) + #binomial can only be fit 0-1 but relabeled to be percent rather than proportion survival
+  scale_x_continuous(name = "post-metamorphic age (week)", breaks = seq(1, 18, by = 1))
+
+
+ggplot() + 
+  facet_grid(cols=vars(treatment)) + 
+  geom_point(size = 1, alpha = 0.7, data = survi.data.juv, aes(y=prop.survi, x = as.numeric(postmm.week), group=clutchtank, color=mean.mm.mass.g)) +
+  geom_smooth(se = F, size = 0.8, alpha = 0.7, method = "glm", method.args = list(family = "binomial"), data = survi.data.juv, aes(y=prop.survi, x = as.numeric(postmm.week), color = mean.mm.mass.g, group=clutchtank)) +
+  geom_line(data = predicted.df.juv.prop.survi,
+            alpha = 1,
+            size = 1.8,
+            mapping = aes(x = x, y = predicted, linetype = group), color = "darkred", show.legend = TRUE) +
+  scale_color_gradient(low = "gray85", high = "gray1") +
+  scale_fill_manual(values = c("gray1", "gray40", "gray85")) +
+  
+  new_scale_color() +
+  new_scale_fill() +
+  scale_color_gradient(low = "lightblue", high = "darkblue") +
+scale_fill_manual(values = c("darkblue", "cornflowerblue", "lightblue")) +
+  geom_point(size = 1, alpha = 0.7, data = survi.data.juv, aes(y=prop.survi, x = as.numeric(postmm.week), group=clutchtank, color=mean.days.forelimb)) +
+  geom_smooth(se = F, size = 0.8, alpha = 0.7, method = "glm", method.args = list(family = "binomial"), data = survi.data.juv, aes(y=prop.survi, x = as.numeric(postmm.week), color = mean.days.forelimb, group=clutchtank)) +
+  
+  scale_linetype_manual(values=c(1,3)) +
+  theme_bw() +
+  theme(legend.position = c(0.98, 0.98),
+        legend.justification = c("right", "top"),
+        legend.title = element_text(size=10),
+        legend.text = element_text(size=10),
+        axis.text.x=element_text(size=12, color = "black"), 
+        axis.text.y=element_text(size=12, color = "black"), 
+        axis.title.x=element_text(size=12, color = "black"), 
+        axis.title.y = element_text(size=12),
+        panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank()) +
+  scale_y_continuous(name = "percent juvenile survivorship", labels = c(0,25,50,75,100)) + #binomial can only be fit 0-1 but relabeled to be percent rather than proportion survival
+  scale_x_continuous(name = "post-metamorphic age (week)", breaks = seq(1, 18, by = 1))
+
+ggarrange(masseffect, dayseffect,
+          ncol = 1,
+          nrow = 2,
+          common.legend = FALSE,
+          legend = NULL,
+          labels = c("a", "b"),
+          font.label = list(size = 20, color = "black"))
+
 
 
 # PLOT DATA: Create panel plot with all survival data across all sampling points --------------
