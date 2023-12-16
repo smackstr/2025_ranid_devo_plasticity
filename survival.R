@@ -225,6 +225,17 @@ for(i in 1:length(unique(survi.data.exp$unique.id))){
 }
 
 
+# COMPILE DATASETS: Add Scaled Mass Index (mean smi at mm) to survi.data.juv -----------------------
+
+# create column to store the developmental data, mean mass at mm represents average mass at metamorphosis for each juvenile tank
+survi.data.juv$mean.mm.smi = NA
+
+# fill developmental data column for survi.data.juv
+for(i in 1:length(unique(survi.data.juv$unique.id))){
+  survi.data.juv$mean.mm.smi[survi.data.juv$unique.id == unique(survi.data.juv$unique.id)[i]] <- mean(morph.data.mm$smi[morph.data.mm$unique.id ==  unique(survi.data.juv$unique.id)[i]], na.rm = TRUE)
+}
+
+
 # COMPILE DATA: Generate survivorship dataframe in terms of 0 (dead) and 1 (alive) for tadpole weeks up to end of experiment ---------------
 
 #create unique id that also has week attached to it
@@ -270,6 +281,7 @@ survi.data.tad.exp.longform = temp3
 rm(temp3)
 
 
+
 # COMPILE DATA: Generate survivorship dataframe in terms of 0 (dead) and 1 (alive) for juvenile weeks ---------------
 
 #set up database to fill
@@ -285,6 +297,7 @@ temp3 = data.frame(postmm.week = rep(temp$postmm.week, temp$seed.num - temp$leth
                    juv.tank.id = rep(temp$juv.tank.id, temp$seed.num - temp$leth.samp.num),
                    mean.days.forelimb = rep(temp$mean.days.forelimb, temp$seed.num - temp$leth.samp.num),
                    mean.mm.mass.g = rep(temp$mean.mm.mass.g, temp$seed.num - temp$leth.samp.num),
+                   mean.mm.smi = rep(temp$mean.mm.smi, temp$seed.num - temp$leth.samp.num),
                    devo.cat = rep(temp$devo.cat, temp$seed.num - temp$leth.samp.num),
                    unique.id = rep(temp$unique.id, temp$seed.num - temp$leth.samp.num),
                    status = NA
@@ -305,6 +318,7 @@ for(i in 2:length(unique(survi.data.juv$unique.id.wk))){
                      juv.tank.id = rep(temp$juv.tank.id, temp$seed.num - temp$leth.samp.num),
                      mean.days.forelimb = rep(temp$mean.days.forelimb, temp$seed.num - temp$leth.samp.num),
                      mean.mm.mass.g = rep(temp$mean.mm.mass.g, temp$seed.num - temp$leth.samp.num),
+                     mean.mm.smi = rep(temp$mean.mm.smi, temp$seed.num - temp$leth.samp.num),
                      devo.cat = rep(temp$devo.cat, temp$seed.num - temp$leth.samp.num),
                      unique.id = rep(temp$unique.id, temp$seed.num - temp$leth.samp.num),
                      status = NA
@@ -422,8 +436,12 @@ simulateResiduals(fittedModel = glmm.full.01.slopes, quantreg=T, plot = T) #prov
 simulateResiduals(fittedModel = glmm.full.01.slopes.poly2, quantreg=T, plot = T) #provides summary of model fitting tests
 simulateResiduals(fittedModel = glmm.full.01.slopes.poly3, quantreg=T, plot = T) #provides summary of model fitting tests
 
-#model selection out of 0/1 logit models
+#model selection out of 0/1 logit models using likelihood-ratio test
 anova(glmm.full.01, glmm.nointxn.01, glmm.nointxn.01.slopes, glmm.full.01.slopes, glmm.null)
+anova(glmm.full.01, glmm.nointxn.01, glmm.null)
+
+#model selection out of best-fit 0/1 logit models using AICc
+AICc(glmm.nointxn.01, glmm.nointxn.01.slopes)
 
 #doublecheck assumptions
 simulateResiduals(fittedModel = glmm.nointxn.01, quantreg=T, plot = T) #provides summary of model fitting tests
@@ -434,6 +452,7 @@ testDispersion(glmm.nointxn.01)
 
 # Final Model:
 final.mod = glmm.nointxn.01
+Anova(final.mod)
 summary(final.mod)
 
 # create dataframe of predicted values that can be plotted on ggplot later
@@ -462,6 +481,8 @@ ggplot() +
 # model definition - setting one random effect as juvenile tank id nested within clutch because want to control for correlation within those groups but not necessarily interested in defining the effect of being in those groups. since experimental study, not testing the inclusion or exclusion of fixed effects, but rather assessing what interactions among fixed effects to include in final model.Note some models estimate intercept and slope, separately, by random factor: (1 | random.factor) + (0 + fixed.factor | random.factor). An alternative way to write this is using the double-bar notation fixed.factor + (fixed.factor || random.factor).
 glmm.full.01 <- glmer(status ~ treatment*scale(mean.days.forelimb)*scale(mean.mm.mass.g) + postmm.week + (1|clutchtank), data=survi.data.juv.longform, na.action = na.omit, family = binomial, control=glmerControl(optimizer="bobyqa",optCtrl=list(maxfun=2e5)))
 
+glmm.full.01.2 <- glmer(status ~ treatment*scale(mean.days.forelimb)*scale(mean.mm.mass.g)*mean.mm.smi + postmm.week + (1|clutchtank), data=survi.data.juv.longform, na.action = na.omit, family = binomial, control=glmerControl(optimizer="bobyqa",optCtrl=list(maxfun=2e5)))
+
 glmm.nointxn.01.1 <- glmer(status ~ treatment*scale(mean.days.forelimb) + mean.mm.mass.g + postmm.week +  (1|clutchtank), data=survi.data.juv.longform, na.action = na.omit, family = binomial, control=glmerControl(optimizer="bobyqa",optCtrl=list(maxfun=2e5)))
 
 # glmm.nointxn.01.slopes <- glmer(status ~ treatment + week + water.level.reduc + (week||clutchtank), data=survi.data.tad.exp.longform, na.action = na.omit, family = binomial, control=glmerControl(optimizer="bobyqa",optCtrl=list(maxfun=2e5)))
@@ -475,19 +496,21 @@ glmm.nointxn.01 <- glmer(status ~ treatment + postmm.week + scale(mean.days.fore
 glmm.null <- glmer(status ~ (1|clutchtank), data=survi.data.juv.longform, na.action = na.omit, family = binomial, control=glmerControl(optimizer="bobyqa",optCtrl=list(maxfun=2e5)))
 
 #model selection out of 0/1 logit models
-anova(glmm.full.01, glmm.nointxn.01.1, glmm.nointxn.01.2, glmm.nointxn.01.3, glmm.nointxn.01, glmm.null)
+anova(glmm.full.01, glmm.full.01.2, glmm.nointxn.01.1, glmm.nointxn.01.2, glmm.nointxn.01.3, glmm.nointxn.01, glmm.null)
 anova(glmm.full.01, glmm.full.01.sigmoid, glmm.null)
 
 #doublecheck assumptions
-simulationOutput <- simulateResiduals(fittedModel = glmm.full.01, quantreg=T, plot = T) #provides summary of model fitting tests
+simulationOutput <- simulateResiduals(fittedModel = glmm.full.01.2, quantreg=T, plot = T) #provides summary of model fitting tests
 testOutliers(simulationOutput, type = 'bootstrap') #recommended re-test with type=outliers indicates no issues
 plotResiduals(simulationOutput, form = survi.data.juv.longform$treatment)
 plotResiduals(simulationOutput, form = survi.data.juv.longform$postmm.week)
 testDispersion(simulationOutput)
 
+#SMS YOU ARE HERE: currently figuring out if it makes sense to even run glmm.full.01.2 since mean.days.forelimb, mean.mm.mass.g, and mean.mm.smi are all correlated
+
 
 # Final Model:
-final.mod = glmm.full.01
+final.mod = glmm.full.01.2
 Anova(final.mod, type = "II")
 summary(final.mod)
 cov2cor(vcov(final.mod)) #assess correlation matrix between fixed effects
@@ -748,3 +771,38 @@ ggarrange(plot.survi1, plot.survi2, plot.survi3,
           legend = NULL,
           labels = c("a", "b", "c"),
           font.label = list(size = 20, color = "black"))
+
+
+# PLOT DATA: Examine mean metamorphic mass and mean larval duration across rearing density to understand three-way interaction with juvenile survivorship across week --------------
+
+ggplot(data = survi.data.juv[survi.data.juv$postmm.week == 1,]) +
+  geom_point(aes(x=treatment, y=mean.mm.mass.g, color = treatment, group = clutchtank)) +
+  stat_summary(fun = "mean", geom="point", color = "black", pch=21, size=4,
+               aes(x=treatment, y=mean.mm.mass.g, fill = treatment)) +
+  geom_boxplot(alpha = 0.7,
+               aes(x=treatment, y=mean.mm.mass.g, color = treatment))
+
+ggplot(data = survi.data.juv[survi.data.juv$postmm.week == 1,]) +
+  geom_point(aes(x=treatment, y=mean.days.forelimb, color = treatment, group = clutchtank)) +
+  stat_summary(fun = "mean", geom="point", color = "black", pch=21, size=4,
+               aes(x=treatment, y=mean.days.forelimb, fill = treatment)) +
+  geom_boxplot(alpha = 0.7,
+               aes(x=treatment, y=mean.days.forelimb, color = treatment))
+
+
+# PLOT DATA: Examine relationship between metamorphic mass and larval duration across rearing densityto understand three-way interaction with juvenile survivorship across week --------------
+
+ggplot(data = morph.data.mm) +
+  facet_grid(cols=vars(treatment)) +
+  geom_jitter(aes(x=days.forelimb, y=mass.g, color = clutch)) +
+  geom_smooth(se=F, method = "lm", aes(x=days.forelimb, y=mass.g, group = clutchtank, color = clutch))
+
+
+ggplot(data = survi.data.juv[survi.data.juv$postmm.week == 1,]) +
+  geom_point(aes(x=treatment, y=mean.days.forelimb, color = treatment, group = clutchtank)) +
+  stat_summary(fun = "mean", geom="point", color = "black", pch=21, size=4,
+               aes(x=treatment, y=mean.days.forelimb, fill = treatment)) +
+  geom_boxplot(alpha = 0.7,
+               aes(x=treatment, y=mean.days.forelimb, color = treatment))
+
+

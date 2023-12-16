@@ -13,6 +13,7 @@ library(DHARMa)
 library(devtools)
 library(stringr)
 library(emmeans)
+library(ggeffects)
 
 setwd("~/Desktop/R Working Directory/Databases")
 
@@ -170,13 +171,19 @@ morph.data.mm$details.forelimb.binary[morph.data.mm$details.forelimb == "left ar
 morph.data.mm$details.forelimb.binary[morph.data.mm$details.forelimb == "right arm emerged"] = 1
 
 
-# COMPILE DATASETS: Add Developmental Data (mean days to forelimb) to morph.data.mm -----------------------
+# COMPILE DATASETS: Add Developmental Data (days to forelimb) and Mean Developmental Data to morph.data.mm -----------------------
 # create column to store the developmental data
 morph.data.mm$days.forelimb = NA
+morph.data.mm$mean.days.forelimb = NA
 
-# fill developmental data column - average mean.days.forelimb for each juvenile tank
+# fill developmental data column - days.forelimb for each individual
 for(i in 1:length(unique(morph.data.mm$unique.id.indiv))){
   morph.data.mm$days.forelimb[morph.data.mm$unique.id.indiv == unique(morph.data.mm$unique.id.indiv)[i]] <- devo.data$days.forelimb[devo.data$unique.id.indiv ==  unique(morph.data.mm$unique.id.indiv)[i]]
+}
+
+# fill developmental data column - average mean.days.forelimb for each juvenile tank
+for(i in 1:length(unique(morph.data.mm$unique.id))){
+  morph.data.mm$mean.days.forelimb[morph.data.mm$unique.id == unique(morph.data.mm$unique.id)[i]] <- mean(devo.data$days.forelimb[devo.data$unique.id.juv ==  unique(morph.data.mm$unique.id)[i]], na.rm = TRUE)
 }
 
 
@@ -462,11 +469,33 @@ for(i in 1:length(unique(morph.data.mm.juv$unique.id))){
 }
 
 
+# COMPILE DATASETS: Create tank-level means dataset from morph.data.juv and morph.data.mm.juv -----------------------
+morph.data.juv.summ = morph.data.juv %>%
+  group_by(post.mm.weeks, post.mm.weeks.num, gs, gs.code, clutch, treatment, juv.tank.id, clutchtank, mean.mm.mass.g, mean.days.forelimb, mean.mm.smi) %>%
+  summarise(mean.mass.g = mean(mass.g, na.rm = TRUE),
+            mean.svl.mm = mean(svl.mm, na.rm = TRUE),
+            mean.r.forelimb.mm = mean(r.forelimb.mm, na.rm = TRUE),
+            mean.r.tibia.mm = mean(r.tibia.mm, na.rm = TRUE),
+            mean.r.thigh.mm = mean(r.thigh.mm, na.rm = TRUE),
+            mean.smi = mean(smi, na.rm = TRUE)
+  )
+
+morph.data.mm.juv.summ = morph.data.mm.juv %>%
+  group_by(post.mm.weeks, post.mm.weeks.num, gs, gs.code, clutch, treatment, juv.tank.id, clutchtank, mean.mm.mass.g, mean.days.forelimb, mean.mm.smi) %>%
+  summarise(mean.mass.g = mean(mass.g, na.rm = TRUE),
+            mean.svl.mm = mean(svl.mm, na.rm = TRUE),
+            mean.r.forelimb.mm = mean(r.forelimb.mm, na.rm = TRUE),
+            mean.r.tibia.mm = mean(r.tibia.mm, na.rm = TRUE),
+            mean.r.thigh.mm = mean(r.thigh.mm, na.rm = TRUE),
+            mean.smi = mean(smi, na.rm = TRUE)
+  )
+
+
 #COMPILE DATASETS: Create clutchtank for later analysis   -----------------------
 morph.data.tad$clutchtank = paste(morph.data.tad$clutch, morph.data.tad$larv.tank.id, sep="_")
 morph.data.mm$clutchtank = paste(morph.data.mm$clutch, morph.data.mm$larv.tank.id, sep="_")
-morph.data.mm.juv$clutchtank = paste(morph.data.mm.juv$clutch, morph.data.mm.juv$larv.tank.id, sep="_")
-morph.data.juv$clutchtank = paste(morph.data.juv$clutch, morph.data.juv$larv.tank.id, sep="_")
+morph.data.mm.juv$clutchtank = paste(morph.data.mm.juv$clutch, morph.data.mm.juv$juv.tank.id, sep="_")
+morph.data.juv$clutchtank = paste(morph.data.juv$clutch, morph.data.juv$juv.tank.id, sep="_")
 growth.data.tad$clutchtank = paste(growth.data.tad$clutch, growth.data.tad$larv.tank.id, sep="_")
 
 
@@ -698,17 +727,17 @@ leveneTest(morph.data.mm$mass.g~morph.data.mm$treatment)
 
 # create dataframe of predicted values that can be plotted on ggplot later
 # predictions using ggeffects (suggested by Susan Durham)
-predicted.df.mm <- ggpredict(final.mod, terms = c("days.forelimb"), type = "random", interval = "confidence")
+predicted.df.morph.mm <- ggpredict(final.mod, terms = c("days.forelimb [all]", "treatment"), type = "random", interval = "confidence")
 
 
 # ANALYZE DATA: Effect of rearing density, water level reduction, and larval duration on snout-vent length AT metamorphosis for FIRST SIX---------------------
 # model definition 
-lmm.full <- lmer(svl.mm ~ treatment*scale(days.forelimb)*mass.g + water.level.reduc + (1|clutchtank), data = morph.data.mm, na.action = na.omit, REML = FALSE)
+lmm.full <- lmer(svl.mm ~ treatment*scale(days.forelimb) + water.level.reduc + (1|clutchtank), data = morph.data.mm, na.action = na.omit, REML = FALSE)
 
-lmm.nointxn <- lmer(svl.mm ~ treatment + scale(days.forelimb) + mass.g + water.level.reduc + (1|clutchtank), data = morph.data.mm, na.action = na.omit, REML = FALSE)
-lmm.nointxn.log <- lmer(log(svl.mm) ~ treatment + scale(days.forelimb) + mass.g + water.level.reduc + (1|clutchtank), data = morph.data.mm, na.action = na.omit, REML = FALSE)
+lmm.nointxn <- lmer(svl.mm ~ treatment + scale(days.forelimb) + water.level.reduc + (1|clutchtank), data = morph.data.mm, na.action = na.omit, REML = FALSE)
+lmm.nointxn.log <- lmer(log(svl.mm) ~ treatment + scale(days.forelimb) + water.level.reduc + (1|clutchtank), data = morph.data.mm, na.action = na.omit, REML = FALSE)
 
-lmm.null <- lmer(svl.mm ~ mass.g + (1|clutchtank), data = morph.data.mm, na.action = na.omit, REML = FALSE)
+lmm.null <- lmer(svl.mm ~ 1 + (1|clutchtank), data = morph.data.mm, na.action = na.omit, REML = FALSE)
 
 # model selection using likelihood ratio test
 anova(lmm.full, lmm.nointxn, lmm.null, test="Chisq")
@@ -732,11 +761,11 @@ emmeans(final.mod, pairwise ~ treatment)
 
 # ANALYZE DATA: Effect of rearing density, water level reduction, and larval duration on forearm length AT metamorphosis for FIRST SIX ---------------------
 # model definition 
-lmm.full <- lmer(r.forelimb.mm ~ treatment*scale(days.forelimb)*mass.g + water.level.reduc + (1|clutchtank), data = morph.data.mm, na.action = na.omit, REML = FALSE)
+lmm.full <- lmer(r.forelimb.mm ~ treatment*scale(days.forelimb) + water.level.reduc + (1|clutchtank), data = morph.data.mm, na.action = na.omit, REML = FALSE)
 
-lmm.nointxn <- lmer(r.forelimb.mm ~ treatment + scale(days.forelimb) + water.level.reduc + mass.g + (1|clutchtank), data = morph.data.mm, na.action = na.omit, REML = FALSE)
+lmm.nointxn <- lmer(r.forelimb.mm ~ treatment + scale(days.forelimb) + water.level.reduc + (1|clutchtank), data = morph.data.mm, na.action = na.omit, REML = FALSE)
 
-lmm.null <- lmer(r.forelimb.mm ~ mass.g + (1|clutchtank), data = morph.data.mm, na.action = na.omit, REML = FALSE)
+lmm.null <- lmer(r.forelimb.mm ~ 1 + (1|clutchtank), data = morph.data.mm, na.action = na.omit, REML = FALSE)
 
 # model selection using likelihood ratio test
 anova(lmm.full, lmm.nointxn, lmm.null, test="Chisq")
@@ -791,11 +820,11 @@ summary(final.mod)
 # ANALYZE DATA: Effect of rearing density, water level reduction, and larval duration on tibia length AT metamorphosis for FIRST SIX ---------------------
 # model definition 
 
-lmm.full <- lmer(r.tibia.mm ~ treatment*scale(days.forelimb)*mass.g + water.level.reduc + (1|clutchtank), data = morph.data.mm, na.action = na.omit, REML = FALSE)
+lmm.full <- lmer(r.tibia.mm ~ treatment*scale(days.forelimb) + water.level.reduc + (1|clutchtank), data = morph.data.mm, na.action = na.omit, REML = FALSE)
 
-lmm.nointxn <- lmer(r.tibia.mm ~ treatment + scale(days.forelimb) + water.level.reduc + mass.g + (1|clutchtank), data = morph.data.mm, na.action = na.omit, REML = FALSE)
+lmm.nointxn <- lmer(r.tibia.mm ~ treatment + scale(days.forelimb) + water.level.reduc + (1|clutchtank), data = morph.data.mm, na.action = na.omit, REML = FALSE)
 
-lmm.null <- lmer(r.tibia.mm ~ mass.g + (1|clutchtank), data = morph.data.mm, na.action = na.omit, REML = FALSE)
+lmm.null <- lmer(r.tibia.mm ~ 1 + (1|clutchtank), data = morph.data.mm, na.action = na.omit, REML = FALSE)
 
 # model selection using likelihood ratio test
 anova(lmm.full, lmm.nointxn, lmm.null, test="Chisq")
@@ -821,11 +850,11 @@ emmeans(final.mod, pairwise ~ water.level.reduc)
 
 # ANALYZE DATA: Effect of rearing density, water level reduction, and larval duration on thigh length AT metamorphosis for FIRST SIX ---------------------
 # model definition 
-lmm.full <- lmer(r.thigh.mm ~ treatment*scale(days.forelimb)*mass.g + water.level.reduc + (1|clutchtank), data = morph.data.mm, na.action = na.omit, REML = FALSE)
+lmm.full <- lmer(r.thigh.mm ~ treatment*scale(days.forelimb) + water.level.reduc + (1|clutchtank), data = morph.data.mm, na.action = na.omit, REML = FALSE)
 
-lmm.nointxn <- lmer(r.thigh.mm ~ treatment + scale(days.forelimb) + water.level.reduc + mass.g + (1|clutchtank), data = morph.data.mm, na.action = na.omit, REML = FALSE)
+lmm.nointxn <- lmer(r.thigh.mm ~ treatment + scale(days.forelimb) + water.level.reduc + (1|clutchtank), data = morph.data.mm, na.action = na.omit, REML = FALSE)
 
-lmm.null <- lmer(r.thigh.mm ~ mass.g + (1|clutchtank), data = morph.data.mm, na.action = na.omit, REML = FALSE)
+lmm.null <- lmer(r.thigh.mm ~ 1 + (1|clutchtank), data = morph.data.mm, na.action = na.omit, REML = FALSE)
 
 # model selection using likelihood ratio test
 anova(lmm.full, lmm.nointxn, lmm.null, test="Chisq")
@@ -848,169 +877,448 @@ leveneTest(morph.data.mm$r.thigh.mm, morph.data.mm$treatment)
 emmeans(final.mod, pairwise ~ treatment)
 
 
-# ANALYZE DATA: Effect of rearing density, water level reduction, and larval duration on scaled mass index (body condition) AT metamorphosis for FIRST SIX ---------------------
+# ANALYZE DATA: Effect of rearing density, water level reduction, and larval duration on scaled mass index (SMI = body condition) AT metamorphosis for FIRST SIX ---------------------
 # model definition - using glmer with log-link function to keep mass in original units. create new column to store because ggpredict doesn't work to recalculate formulaic response variables
 
-lmm.full <- lmer(smi ~ treatment*days.forelimb*mass.g + water.level.reduc + (1|clutchtank), data = morph.data.mm, na.action = na.omit, REML = FALSE)
+#optimize random effects with most saturated model
 
-lmm.full.log <- lmer(log(smi) ~ treatment*days.forelimb*mass.g + water.level.reduc + (1|clutchtank), data = morph.data.mm, na.action = na.omit, REML = FALSE)
+lmm.full.1 <- lmer(smi ~ treatment*days.forelimb + water.level.reduc + (1|clutchtank), data = morph.data.mm, na.action = na.omit, REML = TRUE)
+lmm.full.1.slopes <- lmer(smi ~ treatment*days.forelimb + water.level.reduc + (treatment|clutchtank), data = morph.data.mm, na.action = na.omit, REML = TRUE)
 
-lmm.nointxn <- lmer(smi ~ treatment + days.forelimb + mass.g + water.level.reduc + (1|clutchtank), data = morph.data.mm, na.action = na.omit, REML = FALSE)
+AICc(lmm.full.1,lmm.full.1.slopes)
 
-lmm.nointxn.log <- lmer(log(smi) ~ treatment + days.forelimb + mass.g + water.level.reduc + (1|clutch:larv.tank.id), data = morph.data.mm, na.action = na.omit, REML = FALSE)
+#optimize fixed effects with optimal random effects structure
+lmm.full.1 <- lmer(smi ~ treatment*days.forelimb + water.level.reduc + (1|clutchtank), data = morph.data.mm, na.action = na.omit, REML = FALSE)
+lmm.full.1.log <- lmer(log(smi) ~ treatment*days.forelimb + water.level.reduc + (1|clutchtank), data = morph.data.mm, na.action = na.omit, REML = FALSE)
 
-lmm.null <- lmer(smi ~ mass.g + (1|clutchtank), data = morph.data.mm, na.action = na.omit, REML = FALSE)
+lmm.nointxn <- lmer(smi ~ treatment + days.forelimb + water.level.reduc + (1|clutchtank), data = morph.data.mm, na.action = na.omit, REML = FALSE)
+lmm.nointxn.log <- lmer(log(smi) ~ treatment + days.forelimb + water.level.reduc + (1|clutchtank), data = morph.data.mm, na.action = na.omit, REML = FALSE)
 
-lmm.null.log <- lmer(log(smi) ~ mass.g + (1|clutchtank), data = morph.data.mm, na.action = na.omit, REML = FALSE)
+lmm.nodays <- lmer(smi ~ days.forelimb + water.level.reduc + (1|clutchtank), data = morph.data.mm, na.action = na.omit, REML = FALSE)
+lmm.nodays.log <- lmer(log(smi) ~ days.forelimb + water.level.reduc + (1|clutchtank), data = morph.data.mm, na.action = na.omit, REML = FALSE)
 
-# model selection using likelihood ratio test
-anova(lmm.full, lmm.nointxn, lmm.null, test="Chisq")
+lmm.null <- lmer(smi ~ 1 + (1|clutchtank), data = morph.data.mm, na.action = na.omit, REML = FALSE)
+lmm.null.log <- lmer(log(smi) ~ 1 + (1|clutchtank), data = morph.data.mm, na.action = na.omit, REML = FALSE)
 
-anova(lmm.full.log, lmm.nointxn.log, lmm.null.log, test="Chisq")
+# model selection using log-likelihood - "Fit no more parameters than is necessary. If two or more models fit the data almost equally well, prefer the simpler one
+anova(lmm.full.1, lmm.nointxn, lmm.nodays, lmm.null)
+anova(lmm.full.1.log, lmm.nointxn.log, lmm.nodays.log, lmm.null.log)
 
 # Final Model
 final.mod = lmm.null
-Anova(final.mod, type = "II") #gives information for each factor
-summary(final.mod)
-vcov(final.mod) |> cov2cor() #assess correlations between fixed effects
 
 # check assumptions
-simulationOutput <- simulateResiduals(fittedModel = lmm.full.log, quantreg=T, plot = T) #provides summary of model fitting tests
+simulationOutput <- simulateResiduals(fittedModel = lmm.full.1.log, quantreg=T, plot = T) #provides summary of model fitting tests
 testDispersion(simulationOutput) #tests for over- and under-dispersion
 testZeroInflation(simulationOutput) #tests if more zeroes than expected
 testCategorical(simulationOutput, catPred = morph.data.mm$treatment) #tests residuals against a categorical predictor to assess homogeneity of variance; heteroscedasticity means that there is a systematic dependency of the dispersion / variance on another variable in the model...it means that the level of over/underdispersion depends on another parameter.
 testOutliers(simulationOutput)
 leveneTest(morph.data.mm$smi, group = morph.data.mm$treatment)
 
-# # create dataframe of predicted values that can be plotted on ggplot later
-# predictions using ggeffects (suggested by Susan Durham)
-predicted.df.bodycond <- ggpredict(lmm.nointxn, terms = c("days.forelimb"), type = "random", interval = "confidence")
+
+# ANALYZE DATA: Effect of rearing density, water level reduction, and larval duration on scaled mass index (SMI = body condition) AT metamorphosis for FIRST SIX BUT NOW USING TANK MEANS ---------------------
+# model definition - using glmer with log-link function to keep mass in original units. create new column to store because ggpredict doesn't work to recalculate formulaic response variables
+
+#optimize random effects with most saturated model
+
+lmm.full.1 <- lmer(mean.mm.smi ~ treatment*mean.days.forelimb + water.level.reduc + (1|clutchtank), data = morph.data.mm, na.action = na.omit, REML = TRUE)
+lmm.full.1.slopes <- lmer(mean.mm.smi ~ treatment*mean.days.forelimb + water.level.reduc + (1|clutchtank), data = morph.data.mm, na.action = na.omit, REML = TRUE)
+
+AICc(lmm.full.1,lmm.full.1.slopes)
+
+#optimize fixed effects with optimal random effects structure
+lmm.full.1 <- lmer(mean.mm.smi ~ treatment*mean.days.forelimb + water.level.reduc + (1|clutchtank), data = morph.data.mm, na.action = na.omit, REML = FALSE)
+
+lmm.full.1.log <- lmer(log(mean.mm.smi) ~ treatment*mean.days.forelimb + water.level.reduc + (1|clutchtank), data = morph.data.mm, na.action = na.omit, REML = FALSE)
+
+lmm.nointxn <- lmer(mean.mm.smi ~ treatment + mean.days.forelimb + water.level.reduc + (1|clutchtank), data = morph.data.mm, na.action = na.omit, REML = FALSE)
+
+lmm.nointxn.log <- lmer(log(mean.mm.smi) ~ treatment + mean.days.forelimb + water.level.reduc + (1|clutchtank), data = morph.data.mm, na.action = na.omit, REML = FALSE)
+
+lmm.nodays <- lmer(mean.mm.smi ~ mean.days.forelimb + water.level.reduc + (1|clutchtank), data = morph.data.mm, na.action = na.omit, REML = FALSE)
+
+lmm.nodays.log <- lmer(log(mean.mm.smi) ~ mean.days.forelimb + water.level.reduc + (1|clutchtank), data = morph.data.mm, na.action = na.omit, REML = FALSE)
+
+lmm.null <- lmer(mean.mm.smi ~ 1 + (1|clutchtank), data = morph.data.mm, na.action = na.omit, REML = FALSE)
+
+lmm.null.log <- lmer(log(mean.mm.smi) ~ 1 + (1|clutchtank), data = morph.data.mm, na.action = na.omit, REML = FALSE)
+
+# model selection using log-likelihood - "Fit no more parameters than is necessary. If two or more models fit the data almost equally well, prefer the simpler one
+anova(lmm.full.1, lmm.nointxn, lmm.nodays, lmm.null)
+anova(lmm.full.1.log, lmm.nointxn.log, lmm.nodays.log, lmm.null.log)
+
+# Final Model
+final.mod = lmm.full.1.log
+Anova(final.mod, type = "II")
+summary(final.mod)
+
+# check assumptions
+simulationOutput <- simulateResiduals(fittedModel = lmm.full.1.log, quantreg=T, plot = T) #provides summary of model fitting tests
+testDispersion(simulationOutput) #tests for over- and under-dispersion
+testZeroInflation(simulationOutput) #tests if more zeroes than expected
+testCategorical(simulationOutput, catPred = morph.data.mm$treatment) #tests residuals against a categorical predictor to assess homogeneity of variance; heteroscedasticity means that there is a systematic dependency of the dispersion / variance on another variable in the model...it means that the level of over/underdispersion depends on another parameter.
+testOutliers(simulationOutput)
+leveneTest(morph.data.mm$mean.mm.smi, group = morph.data.mm$treatment)
 
 
 # ANALYZE DATA: Effect of rearing density, metamorphic mass, and larval duration on mass after metamorphosis ---------------------
 # model definition
 # QUESTION: should I use juv.tank.id nested within clutch if mean.mm.mass.g is synonymous with juv.tank.id because it's not changing
-morph.data.juv$post.mm.weeks = factor(morph.data.juv$post.mm.weeks, ordered = TRUE)
+lmm.full <- lmer(mass.g ~ treatment*scale(mean.days.forelimb)*mean.mm.mass.g + post.mm.weeks.num + (1|clutchtank), data = morph.data.juv, na.action = na.omit, REML=FALSE)
 
-lmm.full <- lmer(log(mass.g) ~ treatment*scale(mean.days.forelimb)*post.mm.weeks.num + mean.mm.mass.g + (1|clutch), data = morph.data.juv[is.na(morph.data.juv$juv.tank.id)==FALSE,], na.action = na.omit, REML=FALSE)
+lmm.nointxn.1 <- lmer(mass.g ~ treatment + scale(mean.days.forelimb)*mean.mm.mass.g + post.mm.weeks.num + (1|clutchtank), data = morph.data.juv, na.action = na.omit, REML=FALSE)
 
-performance::check_collinearity(lmm.intxn1)
+lmm.nointxn <- lmer(mass.g ~ treatment + scale(mean.days.forelimb) + mean.mm.mass.g + post.mm.weeks.num + (1|clutchtank), data = morph.data.juv, na.action = na.omit, REML=FALSE)
 
-lmm.intxn1 <- lmer(log(mass.g)  ~ treatment*scale(mean.days.forelimb)*post.mm.weeks + mean.mm.mass.g + (1|clutch), data = morph.data.juv[is.na(morph.data.juv$juv.tank.id)==FALSE,], na.action = na.omit, REML=FALSE)
+lmm.nointxn.poly2 <- lmer(mass.g ~ treatment + scale(mean.days.forelimb) + mean.mm.mass.g + poly(post.mm.weeks.num, degree = 2) + (1|clutchtank), data = morph.data.juv, na.action = na.omit, REML=FALSE)
 
-lmm.intxn2 <- lmer(log(mass.g)  ~ treatment*scale(mean.days.forelimb)*mean.mm.mass.g + post.mm.weeks + (1|clutch), data = morph.data.juv[is.na(morph.data.juv$juv.tank.id)==FALSE,], na.action = na.omit, REML=FALSE)
+lmm.nointxn.poly3 <- lmer(mass.g ~ treatment + scale(mean.days.forelimb) + mean.mm.mass.g + poly(post.mm.weeks.num, degree = 3) + (1|clutchtank), data = morph.data.juv, na.action = na.omit, REML=FALSE)
 
-lmm.intxn3 <- lmer(log(mass.g)  ~ treatment + scale(mean.days.forelimb)*mean.mm.mass.g*post.mm.weeks + (1|clutch), data = morph.data.juv[is.na(morph.data.juv$juv.tank.id)==FALSE,], na.action = na.omit, REML=FALSE)
+lmm.nointxn.log <- lmer(log(mass.g) ~ treatment + scale(mean.days.forelimb) + mean.mm.mass.g + post.mm.weeks.num + (1|clutchtank), data = morph.data.juv, na.action = na.omit, REML=FALSE)
 
-lmm.intxn4 <- lmer(log(mass.g) ~ treatment*scale(mean.days.forelimb) + post.mm.weeks + mean.mm.mass.g + (1|clutch), data = morph.data.juv[is.na(morph.data.juv$juv.tank.id)==FALSE,], na.action = na.omit, REML=FALSE)
+lmm.nointxn.log.poly2 <- lmer(log(mass.g) ~ treatment + scale(mean.days.forelimb) + mean.mm.mass.g + poly(post.mm.weeks.num, degree = 2) + (1|clutchtank), data = morph.data.juv, na.action = na.omit, REML=FALSE)
 
-lmm.intxn5 <- lmer(log(mass.g) ~ treatment*post.mm.weeks + scale(mean.days.forelimb) + mean.mm.mass.g + (1|clutch), data = morph.data.juv[is.na(morph.data.juv$juv.tank.id)==FALSE,], na.action = na.omit, REML=FALSE)
+lmm.nointxn.log.poly3 <- lmer(log(mass.g) ~ treatment + scale(mean.days.forelimb) + mean.mm.mass.g + poly(post.mm.weeks.num, degree = 3) + (1|clutchtank), data = morph.data.juv, na.action = na.omit, REML=FALSE)
 
-lmm.intxn6 <- lmer(log(mass.g)  ~ treatment + scale(mean.days.forelimb)*post.mm.weeks + mean.mm.mass.g + (1|clutch), data = morph.data.juv[is.na(morph.data.juv$juv.tank.id)==FALSE,], na.action = na.omit, REML=FALSE)
+lmm.nointxn.log <- lmer(log(mass.g) ~ treatment + scale(mean.days.forelimb) + mean.mm.mass.g + post.mm.weeks.num + (1|clutchtank), data = morph.data.juv, na.action = na.omit, REML=FALSE)
 
-lmm.intxn7 <- lmer(log(mass.g)  ~ treatment + mean.days.forelimb + mean.mm.mass.g*post.mm.weeks + (1|clutch), data = morph.data.juv[is.na(morph.data.juv$juv.tank.id)==FALSE,], na.action = na.omit, REML=FALSE)
+lmm.null<- lmer(mass.g ~ (1|clutchtank), data = morph.data.juv, na.action = na.omit, REML=FALSE)
 
-lmm.nointxn <- lmer(log(mass.g) ~ treatment + mean.days.forelimb + post.mm.weeks + mean.mm.mass.g + (1|clutch), data = morph.data.juv[is.na(morph.data.juv$juv.tank.id)==FALSE,], na.action = na.omit, REML=FALSE)
-
-lmm.null<- lmer(log(mass.g)  ~ (1|clutch), data = morph.data.juv[is.na(morph.data.juv$juv.tank.id)==FALSE,], na.action = na.omit, REML=FALSE)
-
+lmm.null.log<- lmer(log(mass.g) ~ (1|clutchtank), data = morph.data.juv, na.action = na.omit, REML=FALSE)
 
 # model selection using likelihood ratio test
-anova(lmm.full, lmm.intxn1, lmm.intxn2, lmm.intxn3, lmm.intxn4, lmm.intxn5, lmm.intxn6, lmm.intxn7, lmm.nointxn, lmm.null, test="Chisq")
-anova(lmm.full, glmm.full)
+anova(lmm.full, lmm.nointxn.1, lmm.nointxn, lmm.null)
+
+# model selection using AICc because non-nested models
+AICc(lmm.nointxn, lmm.nointxn.poly2, lmm.nointxn.poly3, lmm.null)
+AICc(lmm.nointxn.log, lmm.nointxn.log.poly2, lmm.nointxn.log.poly3, lmm.null.log)
+
+# check assumptions
+simulationOutput <- simulateResiduals(fittedModel = lmm.nointxn.log.poly3, quantreg=T, plot = T) #provides summary of model fitting tests
+plotResiduals(lmm.nointxn.log.poly3, form = morph.data.juv$treatment)
+plotResiduals(lmm.nointxn.log.poly3, form = morph.data.juv$post.mm.weeks.num)
+testDispersion(simulationOutput) #tests for over- and under-dispersion
+testZeroInflation(simulationOutput) #tests if more zeroes than expected
+testOutliers(simulationOutput)
+
 
 # Final Model
-Anova(lmm.intxn1, type = "III")
-summary(lmm.full)
-cov2cor(vcov(lmm.full)) #assess correlation matrix between fixed effects
-emmeans(lmm.full, pairwise ~ treatment)
-emmeans(lmm.full, pairwise ~ post.mm.weeks)
-cor.test(morph.data.juv$mean.mm.mass.g, morph.data.juv$mean.days.forelimb)
-cor.test(morph.data.juv$mean.mm.mass.g, morph.data.juv$mass.g)
-# R's default is to fit a series of polynomial functions or contrasts to the levels of the variable. Variables with .L, .Q, and .C and ^4 are, respectively, the coefficients for the ordered factor coded with linear, quadratic, cubic, and quadratic contrasts. The first is linear (.L), the second is quadratic (.Q), the third is cubic (.C), and so on. R will fit one fewer polynomial functions than the number of available levels. The interpretation of a particular beta test is then generalized to: Which contrasts contribute significantly to explain any differences between levels in your dependent variable? Because the weeks.L predictor is significant and negative, this suggests a linear decreasing trend in logit across weeks, and because the Year.Q predictor is significant and negative, this suggests a deacceleration trend is detectable in the pattern of logits across years. Third order polynomials model jerk (rate of change of an object's acceleration over time), and fourth order polynomials model jounce (a.k.a., snap). However, I would stop interpreting around this order and higher because it quickly becomes nonsensical to practical folk.
+final.mod = lmm.nointxn.log.poly3
+Anova(final.mod, type = "II")
+summary(final.mod)
+exp(fixef(final.mod))
 
-#back-transform fixed effects by adding each effect to the intercept then exponientiating
-c(fixef(lmm.full)[1], exp(fixef(lmm.full)[-1] + fixef(lmm.full)[1]))
+cov2cor(vcov(final.mod)) #assess correlation matrix between fixed effects
+
+emmeans(final.mod, pairwise ~ treatment)
+
+cor.test(morph.data.juv$mean.mm.mass.g, morph.data.juv$mean.days.forelimb)
 
 
 # create dataframe of predicted values that can be plotted on ggplot later
 # predictions using ggeffects (suggested by Susan Durham)
-predicted.df.juv <- ggpredict(lmm.full, terms = c("post.mm.weeks", "mean.days.forelimb"), type = "random", interval = "confidence")
+predicted.df.morph.juv <- ggpredict(final.mod, terms = c("post.mm.weeks.num [all]"), type = "random", interval = "confidence")
 
 
-# check assumptions
-simulationOutput <- simulateResiduals(fittedModel = lmm.full, quantreg=T, plot = T) #provides summary of model fitting tests
-testDispersion(simulationOutput) #tests for over- and under-dispersion
-testZeroInflation(simulationOutput) #tests if more zeroes than expected
-testOutliers(simulationOutput)
+# ANALYZE DATA: Effect of rearing density, metamorphic mass, and larval duration on mass after metamorphosis BUT NOW USING TANK-LEVEL MEANS ---------------------
+# data examination
+ggplot(morph.data.juv.summ, 
+       aes(x = post.mm.weeks.num, y = mean.mass.g, group = clutchtank, color = clutchtank)) +
+  #geom_line() +
+  stat_summary(fun.y=mean, geom="line", size = 0.5, aes(color = clutchtank, group = clutchtank)) +
+  stat_summary(fun.y=mean, geom="point", color = "black", pch=21, size=2, aes(fill=clutchtank)) +
+  facet_wrap(~treatment) +
+  geom_smooth(data = morph.data.juv.summ, method = "lm", aes(x=post.mm.weeks.num, y=mean.mass.g), inherit.aes = F, se = F, color="black") #linear
 
-#predict for later ggplot
+ggplot(morph.data.juv.summ, 
+       aes(x = log(post.mm.weeks.num), y = mean.mass.g, group = clutchtank, color = clutchtank)) +
+  #geom_line() +
+  stat_summary(fun.y=mean, geom="line", size = 0.5, aes(color = clutchtank, group = clutchtank)) +
+  stat_summary(fun.y=mean, geom="point", color = "black", pch=21, size=2, aes(fill=clutchtank)) +
+  facet_wrap(~treatment) +
+  geom_smooth(data = morph.data.juv.summ, aes(x=log(post.mm.weeks.num), y=mean.mass.g), inherit.aes = F, se = F, color="black") #log
+
+morph.data.juv.summ$poly.post.mm.weeks.num = morph.data.juv.summ$post.mm.weeks.num^2
+ggplot(morph.data.juv.summ, 
+       aes(x = post.mm.weeks.num^2, y = mean.mass.g, group = clutchtank, color = clutchtank)) +
+  #geom_line() +
+  stat_summary(fun.y=mean, geom="line", size = 0.5, aes(color = clutchtank, group = clutchtank)) +
+  stat_summary(fun.y=mean, geom="point", color = "black", pch=21, size=2, aes(fill=clutchtank)) +
+  facet_wrap(~treatment) +
+  geom_smooth(data = morph.data.juv.summ, aes(x=post.mm.weeks.num^2, y = mean.mass.g, inherit.aes = F, se = F, color="black")) #poly
 
 
-# ANALYZE DATA: Effect of treatment and larval duration on mean metamorphic mass to show that larval duration influences mean metamorphic mass ---------------------
 # model definition
+# QUESTION: should I use juv.tank.id nested within clutch if mean.mm.mass.g is synonymous with juv.tank.id because it's not changing
+lmm.full <- lmer(mean.mass.g ~ treatment*scale(mean.days.forelimb)*mean.mm.mass.g + post.mm.weeks.num + (1|clutchtank), data = morph.data.juv.summ, na.action = na.omit, REML=FALSE)
 
-lmm.full <- lmer(mean.mm.mass.g ~ treatment*days.forelimb + (1|clutch), data = morph.data.mm, na.action = na.omit, REML=FALSE)
+lmm.nointxn.1 <- lmer(mean.mass.g ~ treatment + scale(mean.days.forelimb)*mean.mm.mass.g + post.mm.weeks.num + (1|clutchtank), data = morph.data.juv.summ, na.action = na.omit, REML=FALSE)
 
-lmm.nointxn <- lmer(mean.mm.mass.g ~ treatment + days.forelimb + (1|clutch), data = morph.data.mm, na.action = na.omit, REML=FALSE)
+lmm.nointxn <- lmer(mean.mass.g ~ treatment + scale(mean.days.forelimb) + mean.mm.mass.g + post.mm.weeks.num + (1|clutchtank), data = morph.data.juv.summ, na.action = na.omit, REML=FALSE)
 
-lmm.null<- lmer(mean.mm.mass.g ~ (1|clutch), data = morph.data.mm, na.action = na.omit, REML=FALSE)
+lmm.nointxn.log <- lmer(log(mean.mass.g) ~ treatment + scale(mean.days.forelimb) + mean.mm.mass.g + post.mm.weeks.num + (1|clutchtank), data = morph.data.juv.summ, na.action = na.omit, REML=FALSE)
 
+lmm.nointxn.log.poly2 <- lmer(log(mean.mass.g) ~ treatment + scale(mean.days.forelimb) + mean.mm.mass.g + poly(post.mm.weeks.num, degree = 2) + (1|clutchtank), data = morph.data.juv.summ, na.action = na.omit, REML=FALSE)
+
+lmm.nointxn.log.poly3 <- lmer(log(mean.mass.g) ~ treatment + scale(mean.days.forelimb) + mean.mm.mass.g + poly(post.mm.weeks.num, degree = 3) + (1|clutchtank), data = morph.data.juv.summ, na.action = na.omit, REML=FALSE)
+
+lmm.null<- lmer(mean.mass.g ~ (1|clutchtank), data = morph.data.juv.summ, na.action = na.omit, REML=FALSE)
+
+lmm.null.log <- lmer(log(mean.mass.g) ~ (1|clutchtank), data = morph.data.juv.summ, na.action = na.omit, REML=FALSE)
 
 # model selection using likelihood ratio test
-anova(lmm.full, lmm.nointxn, lmm.null, test="Chisq")
+anova(lmm.full, lmm.nointxn.1, lmm.nointxn, lmm.null)
 
-# Final Model
-Anova(lmm.nointxn, type = "II")
-summary(lmm.nointxn)
-# R's default is to fit a series of polynomial functions or contrasts to the levels of the variable. Variables with .L, .Q, and .C and ^4 are, respectively, the coefficients for the ordered factor coded with linear, quadratic, cubic, and quadratic contrasts. The first is linear (.L), the second is quadratic (.Q), the third is cubic (.C), and so on. R will fit one fewer polynomial functions than the number of available levels. The interpretation of a particular beta test is then generalized to: Which contrasts contribute significantly to explain any differences between levels in your dependent variable? Because the weeks.L predictor is significant and negative, this suggests a linear decreasing trend in logit across weeks, and because the Year.Q predictor is significant and negative, this suggests a deacceleration trend is detectable in the pattern of logits across years. Third order polynomials model jerk (rate of change of an object's acceleration over time), and fourth order polynomials model jounce (a.k.a., snap). However, I would stop interpreting around this order and higher because it quickly becomes nonsensical to practical folk.
-
-#back-transform fixed effects
-fixef(lmm.nointxn)
-
+# model selection using AICc because non-nested model structure
+AICc(lmm.nointxn, lmm.nointxn.poly2, lmm.nointxn.poly3, lmm.null)
+AICc(lmm.nointxn.log, lmm.nointxn.log.poly2, lmm.nointxn.log.poly3, lmm.null.log)
 
 # check assumptions
-simulationOutput <- simulateResiduals(fittedModel = lmm.nointxn, quantreg=T, plot = T) #provides summary of model fitting tests
+simulationOutput <- simulateResiduals(fittedModel = lmm.nointxn.log.poly3, quantreg=T, plot = T) #provides summary of model fitting tests
+plotResiduals(lmm.nointxn.log.poly3, form = morph.data.juv.summ$treatment)
+plotResiduals(lmm.nointxn.log.poly3, form = morph.data.juv.summ$post.mm.weeks.num)
 testDispersion(simulationOutput) #tests for over- and under-dispersion
 testZeroInflation(simulationOutput) #tests if more zeroes than expected
 testOutliers(simulationOutput)
 
-#predict for later ggplot
+# Final Model
+final.mod = lmm.nointxn.log.poly3
+Anova(final.mod, type = "II")
+summary(final.mod)
+exp(fixef(final.mod))
 
+cov2cor(vcov(final.mod)) #assess correlation matrix between fixed effects
+
+emmeans(final.mod, pairwise ~ treatment)
+
+cor.test(morph.data.juv$mean.mm.mass.g, morph.data.juv$mean.days.forelimb)
+
+
+# create dataframe of predicted values that can be plotted on ggplot later
+# predictions using ggeffects (suggested by Susan Durham)
+predicted.df.morph.juv.summ <- ggpredict(final.mod, terms = c("post.mm.weeks.num [all]"), type = "random", interval = "confidence")
+
+
+# ANALYZE DATA: Effect of rearing density, metamorphic mass, and larval duration on SVL after metamorphosis ---------------------
+# model definition
+lmm.full <- lmer(svl.mm ~ treatment*scale(mean.days.forelimb)*mean.mm.mass.g + post.mm.weeks.num + (1|clutchtank), data = morph.data.juv, na.action = na.omit, REML=FALSE)
+
+lmm.nointxn.1 <- lmer(svl.mm ~ treatment + scale(mean.days.forelimb)*mean.mm.mass.g + post.mm.weeks.num + (1|clutchtank), data = morph.data.juv, na.action = na.omit, REML=FALSE)
+
+lmm.nointxn <- lmer(svl.mm ~ treatment + scale(mean.days.forelimb) + mean.mm.mass.g + post.mm.weeks.num + (1|clutchtank), data = morph.data.juv, na.action = na.omit, REML=FALSE)
+
+lmm.nointxn.poly2 <- lmer(svl.mm ~ treatment + scale(mean.days.forelimb) + mean.mm.mass.g + poly(post.mm.weeks.num, degree = 2) + (1|clutchtank), data = morph.data.juv, na.action = na.omit, REML=FALSE)
+
+lmm.nointxn.poly3 <- lmer(svl.mm ~ treatment + scale(mean.days.forelimb) + mean.mm.mass.g + poly(post.mm.weeks.num, degree = 3) + (1|clutchtank), data = morph.data.juv, na.action = na.omit, REML=FALSE)
+
+lmm.nointxn.log <- lmer(log(svl.mm) ~ treatment + scale(mean.days.forelimb) + mean.mm.mass.g + post.mm.weeks.num + (1|clutchtank), data = morph.data.juv, na.action = na.omit, REML=FALSE)
+
+lmm.nointxn.log.poly2 <- lmer(log(svl.mm) ~ treatment + scale(mean.days.forelimb) + mean.mm.mass.g + poly(post.mm.weeks.num, degree = 2) + (1|clutchtank), data = morph.data.juv, na.action = na.omit, REML=FALSE)
+
+lmm.nointxn.log.poly3 <- lmer(log(svl.mm) ~ treatment + scale(mean.days.forelimb) + mean.mm.mass.g + poly(post.mm.weeks.num, degree = 3) + (1|clutchtank), data = morph.data.juv, na.action = na.omit, REML=FALSE)
+
+lmm.null<- lmer(svl.mm ~ 1 + (1|clutchtank), data = morph.data.juv, na.action = na.omit, REML=FALSE)
+
+lmm.null.log<- lmer(log(svl.mm) ~ (1|clutchtank), data = morph.data.juv, na.action = na.omit, REML=FALSE)
+
+# model selection using likelihood ratio test
+anova(lmm.full, lmm.nointxn.1, lmm.nointxn, lmm.null)
+
+# model selection using AICc because non-nested models
+AICc(lmm.nointxn, lmm.nointxn.poly2, lmm.nointxn.poly3, lmm.null)
+AICc(lmm.nointxn.log, lmm.nointxn.log.poly2, lmm.nointxn.log.poly3, lmm.null.log)
+
+# check assumptions
+simulationOutput <- simulateResiduals(fittedModel = lmm.nointxn.log.poly3, quantreg=T, plot = T) #provides summary of model fitting tests
+plotResiduals(lmm.nointxn.log.poly3, form = morph.data.juv$treatment)
+plotResiduals(lmm.nointxn.log.poly3, form = morph.data.juv$post.mm.weeks.num)
+testDispersion(simulationOutput) #tests for over- and under-dispersion
+testZeroInflation(simulationOutput) #tests if more zeroes than expected
+testOutliers(simulationOutput)
+
+
+# Final Model
+final.mod = lmm.nointxn.log.poly3
+Anova(final.mod, type = "II")
+summary(final.mod)
+exp(fixef(final.mod))
+
+
+# ANALYZE DATA: Effect of rearing density, metamorphic mass, and larval duration on FOREARM after metamorphosis ---------------------
+# model definition
+lmm.full <- lmer(r.forelimb.mm ~ treatment*scale(mean.days.forelimb)*mean.mm.mass.g + post.mm.weeks.num + (1|clutchtank), data = morph.data.juv, na.action = na.omit, REML=FALSE)
+
+lmm.nointxn.1 <- lmer(r.forelimb.mm ~ treatment + scale(mean.days.forelimb)*mean.mm.mass.g + post.mm.weeks.num + (1|clutchtank), data = morph.data.juv, na.action = na.omit, REML=FALSE)
+
+lmm.nointxn <- lmer(r.forelimb.mm ~ treatment + scale(mean.days.forelimb) + mean.mm.mass.g + post.mm.weeks.num + (1|clutchtank), data = morph.data.juv, na.action = na.omit, REML=FALSE)
+
+lmm.nointxn.poly2 <- lmer(r.forelimb.mm ~ treatment + scale(mean.days.forelimb) + mean.mm.mass.g + poly(post.mm.weeks.num, degree = 2) + (1|clutchtank), data = morph.data.juv, na.action = na.omit, REML=FALSE)
+
+lmm.nointxn.poly3 <- lmer(r.forelimb.mm ~ treatment + scale(mean.days.forelimb) + mean.mm.mass.g + poly(post.mm.weeks.num, degree = 3) + (1|clutchtank), data = morph.data.juv, na.action = na.omit, REML=FALSE)
+
+lmm.nointxn.log <- lmer(log(r.forelimb.mm) ~ treatment + scale(mean.days.forelimb) + mean.mm.mass.g + post.mm.weeks.num + (1|clutchtank), data = morph.data.juv, na.action = na.omit, REML=FALSE)
+
+lmm.nointxn.log.poly2 <- lmer(log(r.forelimb.mm) ~ treatment + scale(mean.days.forelimb) + mean.mm.mass.g + poly(post.mm.weeks.num, degree = 2) + (1|clutchtank), data = morph.data.juv, na.action = na.omit, REML=FALSE)
+
+lmm.nointxn.log.poly3 <- lmer(log(r.forelimb.mm) ~ treatment + scale(mean.days.forelimb) + mean.mm.mass.g + poly(post.mm.weeks.num, degree = 3) + (1|clutchtank), data = morph.data.juv, na.action = na.omit, REML=FALSE)
+
+lmm.null<- lmer(r.forelimb.mm ~ 1 + (1|clutchtank), data = morph.data.juv, na.action = na.omit, REML=FALSE)
+
+lmm.null.log<- lmer(log(r.forelimb.mm) ~ (1|clutchtank), data = morph.data.juv, na.action = na.omit, REML=FALSE)
+
+# model selection using likelihood ratio test
+anova(lmm.full, lmm.nointxn.1, lmm.nointxn, lmm.null)
+
+# model selection using AICc because non-nested models
+AICc(lmm.nointxn, lmm.nointxn.poly2, lmm.nointxn.poly3, lmm.null)
+AICc(lmm.nointxn.log, lmm.nointxn.log.poly2, lmm.nointxn.log.poly3, lmm.null.log)
+
+# check assumptions
+simulationOutput <- simulateResiduals(fittedModel = lmm.nointxn.log.poly3, quantreg=T, plot = T) #provides summary of model fitting tests
+plotResiduals(lmm.nointxn.log.poly3, form = morph.data.juv$treatment)
+plotResiduals(lmm.nointxn.log.poly3, form = morph.data.juv$post.mm.weeks.num)
+testDispersion(simulationOutput) #tests for over- and under-dispersion
+testZeroInflation(simulationOutput) #tests if more zeroes than expected
+testOutliers(simulationOutput)
+
+
+# Final Model
+final.mod = lmm.nointxn.log.poly3
+Anova(final.mod, type = "II")
+summary(final.mod)
+exp(fixef(final.mod))
+
+
+# ANALYZE DATA: Effect of rearing density, metamorphic mass, and larval duration on TIBIA LENGTH after metamorphosis ---------------------
+# model definition
+lmm.full <- lmer(r.tibia.mm ~ treatment*scale(mean.days.forelimb)*mean.mm.mass.g + post.mm.weeks.num + (1|clutchtank), data = morph.data.juv, na.action = na.omit, REML=FALSE)
+
+lmm.nointxn.1 <- lmer(r.tibia.mm ~ treatment + scale(mean.days.forelimb)*mean.mm.mass.g + post.mm.weeks.num + (1|clutchtank), data = morph.data.juv, na.action = na.omit, REML=FALSE)
+
+lmm.nointxn <- lmer(r.tibia.mm ~ treatment + scale(mean.days.forelimb) + mean.mm.mass.g + post.mm.weeks.num + (1|clutchtank), data = morph.data.juv, na.action = na.omit, REML=FALSE)
+
+lmm.nointxn.poly2 <- lmer(r.tibia.mm ~ treatment + scale(mean.days.forelimb) + mean.mm.mass.g + poly(post.mm.weeks.num, degree = 2) + (1|clutchtank), data = morph.data.juv, na.action = na.omit, REML=FALSE)
+
+lmm.nointxn.poly3 <- lmer(r.tibia.mm ~ treatment + scale(mean.days.forelimb) + mean.mm.mass.g + poly(post.mm.weeks.num, degree = 3) + (1|clutchtank), data = morph.data.juv, na.action = na.omit, REML=FALSE)
+
+lmm.nointxn.log <- lmer(log(r.tibia.mm) ~ treatment + scale(mean.days.forelimb) + mean.mm.mass.g + post.mm.weeks.num + (1|clutchtank), data = morph.data.juv, na.action = na.omit, REML=FALSE)
+
+lmm.nointxn.log.poly2 <- lmer(log(r.tibia.mm) ~ treatment + scale(mean.days.forelimb) + mean.mm.mass.g + poly(post.mm.weeks.num, degree = 2) + (1|clutchtank), data = morph.data.juv, na.action = na.omit, REML=FALSE)
+
+lmm.nointxn.log.poly3 <- lmer(log(r.tibia.mm) ~ treatment + scale(mean.days.forelimb) + mean.mm.mass.g + poly(post.mm.weeks.num, degree = 3) + (1|clutchtank), data = morph.data.juv, na.action = na.omit, REML=FALSE)
+
+lmm.null<- lmer(r.tibia.mm ~ 1 + (1|clutchtank), data = morph.data.juv, na.action = na.omit, REML=FALSE)
+
+lmm.null.log<- lmer(log(r.tibia.mm) ~ (1|clutchtank), data = morph.data.juv, na.action = na.omit, REML=FALSE)
+
+# model selection using likelihood ratio test
+anova(lmm.full, lmm.nointxn.1, lmm.nointxn, lmm.null)
+
+# model selection using AICc because non-nested models
+AICc(lmm.nointxn, lmm.nointxn.poly2, lmm.nointxn.poly3, lmm.null)
+AICc(lmm.nointxn.log, lmm.nointxn.log.poly2, lmm.nointxn.log.poly3, lmm.null.log)
+
+# check assumptions
+simulationOutput <- simulateResiduals(fittedModel = lmm.nointxn.log.poly3, quantreg=T, plot = T) #provides summary of model fitting tests
+plotResiduals(lmm.nointxn.log.poly3, form = morph.data.juv$treatment)
+plotResiduals(lmm.nointxn.log.poly3, form = morph.data.juv$post.mm.weeks.num)
+testDispersion(simulationOutput) #tests for over- and under-dispersion
+testZeroInflation(simulationOutput) #tests if more zeroes than expected
+testOutliers(simulationOutput)
+
+
+# Final Model
+final.mod = lmm.nointxn.log.poly3
+Anova(final.mod, type = "II")
+summary(final.mod)
+exp(fixef(final.mod))
+
+
+# ANALYZE DATA: Effect of rearing density, metamorphic mass, and larval duration on THIGH LENGTH after metamorphosis ---------------------
+# model definition
+lmm.full <- lmer(r.thigh.mm ~ treatment*scale(mean.days.forelimb)*mean.mm.mass.g + post.mm.weeks.num + (1|clutchtank), data = morph.data.juv, na.action = na.omit, REML=FALSE)
+
+lmm.nointxn.1 <- lmer(r.thigh.mm ~ treatment + scale(mean.days.forelimb)*mean.mm.mass.g + post.mm.weeks.num + (1|clutchtank), data = morph.data.juv, na.action = na.omit, REML=FALSE)
+
+lmm.nointxn <- lmer(r.thigh.mm ~ treatment + scale(mean.days.forelimb) + mean.mm.mass.g + post.mm.weeks.num + (1|clutchtank), data = morph.data.juv, na.action = na.omit, REML=FALSE)
+
+lmm.nointxn.poly2 <- lmer(r.thigh.mm ~ treatment + scale(mean.days.forelimb) + mean.mm.mass.g + poly(post.mm.weeks.num, degree = 2) + (1|clutchtank), data = morph.data.juv, na.action = na.omit, REML=FALSE)
+
+lmm.nointxn.poly3 <- lmer(r.thigh.mm ~ treatment + scale(mean.days.forelimb) + mean.mm.mass.g + poly(post.mm.weeks.num, degree = 3) + (1|clutchtank), data = morph.data.juv, na.action = na.omit, REML=FALSE)
+
+lmm.nointxn.log <- lmer(log(r.thigh.mm) ~ treatment + scale(mean.days.forelimb) + mean.mm.mass.g + post.mm.weeks.num + (1|clutchtank), data = morph.data.juv, na.action = na.omit, REML=FALSE)
+
+lmm.nointxn.log.poly2 <- lmer(log(r.thigh.mm) ~ treatment + scale(mean.days.forelimb) + mean.mm.mass.g + poly(post.mm.weeks.num, degree = 2) + (1|clutchtank), data = morph.data.juv, na.action = na.omit, REML=FALSE)
+
+lmm.nointxn.log.poly3 <- lmer(log(r.thigh.mm) ~ treatment + scale(mean.days.forelimb) + mean.mm.mass.g + poly(post.mm.weeks.num, degree = 3) + (1|clutchtank), data = morph.data.juv, na.action = na.omit, REML=FALSE)
+
+lmm.null<- lmer(r.thigh.mm ~ 1 + (1|clutchtank), data = morph.data.juv, na.action = na.omit, REML=FALSE)
+
+lmm.null.log<- lmer(log(r.thigh.mm) ~ (1|clutchtank), data = morph.data.juv, na.action = na.omit, REML=FALSE)
+
+# model selection using likelihood ratio test
+anova(lmm.full, lmm.nointxn.1, lmm.nointxn, lmm.null)
+
+# model selection using AICc because non-nested models
+AICc(lmm.nointxn, lmm.nointxn.poly2, lmm.nointxn.poly3, lmm.null)
+AICc(lmm.nointxn.log, lmm.nointxn.log.poly2, lmm.nointxn.log.poly3, lmm.null.log)
+
+# check assumptions
+simulationOutput <- simulateResiduals(fittedModel = lmm.nointxn.log.poly3, quantreg=T, plot = T) #provides summary of model fitting tests
+plotResiduals(lmm.nointxn.log.poly3, form = morph.data.juv$treatment)
+plotResiduals(lmm.nointxn.log.poly3, form = morph.data.juv$post.mm.weeks.num)
+testDispersion(simulationOutput) #tests for over- and under-dispersion
+testZeroInflation(simulationOutput) #tests if more zeroes than expected
+testOutliers(simulationOutput)
+
+
+# Final Model
+final.mod = lmm.nointxn.log.poly3
+Anova(final.mod, type = "II")
+summary(final.mod)
+exp(fixef(final.mod))
 
 
 # ANALYZE DATA: Effect of rearing density, metamorphic mass, and larval duration on scaled mass index (body condition) after metamorphosis ---------------------
 
 # model definition
-lmm.full <- lmer(smi ~ treatment*scale(mean.days.forelimb)*mean.mm.smi + post.mm.weeks + (1|clutch), data = morph.data.juv[is.na(morph.data.juv$juv.tank.id)==FALSE,], na.action = na.omit, REML=FALSE)
+lmm.full <- lmer(smi ~ treatment*scale(mean.days.forelimb)*mean.mm.smi + post.mm.weeks.num + (1|clutchtank), data = morph.data.juv, na.action = na.omit, REML=FALSE)
 
-lmm.intxn1 <- lmer(smi ~ treatment*scale(mean.days.forelimb) + mean.mm.smi + post.mm.weeks + (1|clutch), data = morph.data.juv[is.na(morph.data.juv$juv.tank.id)==FALSE,], na.action = na.omit, REML=FALSE)
+lmm.intxn1 <- lmer(smi ~ treatment + scale(mean.days.forelimb)*mean.mm.smi + post.mm.weeks.num + (1|clutchtank), data = morph.data.juv, na.action = na.omit, REML=FALSE)
 
-lmm.intxn2 <- lmer(smi ~ treatment + scale(mean.days.forelimb)*mean.mm.smi + post.mm.weeks + (1|clutch), data = morph.data.juv[is.na(morph.data.juv$juv.tank.id)==FALSE,], na.action = na.omit, REML=FALSE)
+lmm.nointxn <- lmer(smi ~ treatment + scale(mean.days.forelimb) + mean.mm.smi + post.mm.weeks.num + (1|clutchtank), data = morph.data.juv, na.action = na.omit, REML=FALSE)
 
-lmm.intxn3 <- lmer(smi ~ treatment*mean.mm.smi + scale(mean.days.forelimb)+ post.mm.weeks + (1|clutch), data = morph.data.juv[is.na(morph.data.juv$juv.tank.id)==FALSE,], na.action = na.omit, REML=FALSE)
-
-lmm.nointxn <- lmer(smi ~ treatment + scale(mean.days.forelimb) + mean.mm.smi + post.mm.weeks + (1|clutch), data = morph.data.juv[is.na(morph.data.juv$juv.tank.id)==FALSE,], na.action = na.omit, REML=FALSE)
-
-lmm.null<- lmer(smi ~ (1|clutch:juv.tank.id), data = morph.data.juv[is.na(morph.data.juv$juv.tank.id)==FALSE,], na.action = na.omit, REML=FALSE)
+lmm.null<- lmer(smi ~ 1 + (1|clutchtank), data = morph.data.juv, na.action = na.omit, REML=FALSE)
 
 
 # model selection using likelihood ratio test
-anova(lmm.full, lmm.intxn1, lmm.intxn2, lmm.intxn3, lmm.nointxn, lmm.null, test="Chisq")
+anova(lmm.full, lmm.intxn1, lmm.nointxn, lmm.null, test="Chisq")
+
+#model selection using AICc since non-nested models
+AICc(lmm.full, lmm.intxn1, lmm.nointxn, lmm.treat, lmm.null)
 
 # Final Model
-Anova(lmm.full, type = "III")
-summary(lmm.full)
-# R's default is to fit a series of polynomial functions or contrasts to the levels of the variable. Variables with .L, .Q, and .C and ^4 are, respectively, the coefficients for the ordered factor coded with linear, quadratic, cubic, and quadratic contrasts. The first is linear (.L), the second is quadratic (.Q), the third is cubic (.C), and so on. R will fit one fewer polynomial functions than the number of available levels. The interpretation of a particular beta test is then generalized to: Which contrasts contribute significantly to explain any differences between levels in your dependent variable? Because the weeks.L predictor is significant and negative, this suggests a linear decreasing trend in logit across weeks, and because the Year.Q predictor is significant and negative, this suggests a deacceleration trend is detectable in the pattern of logits across years. Third order polynomials model jerk (rate of change of an object's acceleration over time), and fourth order polynomials model jounce (a.k.a., snap). However, I would stop interpreting around this order and higher because it quickly becomes nonsensical to practical folk.
-fixef(lmm.full)
+final.mod = lmm.full
+Anova(final.mod, type = "II")
+summary(final.mod)
+
+#three-way interaction is significant so helpful to examine relationship separately for hd and ld
+lmm.full.ld <- lmer(smi ~ scale(mean.days.forelimb)*mean.mm.smi + post.mm.weeks.num + (1|clutchtank), data = morph.data.juv[morph.data.juv$treatment == "low density",], na.action = na.omit, REML=FALSE)
+lmm.full.hd <- lmer(smi ~ scale(mean.days.forelimb)*mean.mm.smi + post.mm.weeks.num + (1|clutchtank), data = morph.data.juv[morph.data.juv$treatment == "high density",], na.action = na.omit, REML=FALSE)
+
+Anova(lmm.full.ld, type = "II")
+Anova(lmm.full.hd, type = "II")
+
+summary(lmm.full.ld)
+summary(lmm.full.hd)
+
 vcov(lmm.full) |> cov2cor() #assess correlations between fixed effects
 emmeans(lmm.full, pairwise ~ treatment)
-cor.test(morph.data.juv$mean.mm.smi, morph.data.juv$mean.days.forelimb)
-cor.test(morph.data.juv$mean.mm.smi, morph.data.juv$smi)
 
 # check assumptions
 simulationOutput <- simulateResiduals(fittedModel = lmm.full, quantreg=T, plot = T) #provides summary of model fitting tests
-
+plotResiduals(lmm.full, form = morph.data.juv$treatment)
+plotResiduals(lmm.full, form = morph.data.juv$post.mm.weeks.num)
 testDispersion(simulationOutput) #tests for over- and under-dispersion
 testZeroInflation(simulationOutput) #tests if more zeroes than expected
 testCategorical(simulationOutput, catPred = morph.data.juv$treatment) #tests residuals against a categorical predictor to assess homogeneity of variance; heteroscedasticity means that there is a systematic dependency of the dispersion / variance on another variable in the model...it means that the level of over/underdispersion depends on another parameter.
@@ -1018,6 +1326,48 @@ testOutliers(simulationOutput)
 
 #post-hoc pairwise comparisons
 emmeans(lmm.full, pairwise ~ treatment)
+
+# create dataframe of predicted values that can be plotted on ggplot later
+# predictions using ggeffects (suggested by Susan Durham)
+predicted.df.bodycond.juv <- ggpredict(final.mod, terms = c("post.mm.weeks.num [all]", "treatment"), type = "random", interval = "confidence")
+
+
+# ANALYZE DATA: Effect of rearing density, metamorphic mass, and larval duration on scaled mass index (body condition) after metamorphosis BUT NOW USING TANK-LEVEL MEANS ---------------------
+
+# model definition
+lmm.full <- lmer(mean.smi ~ treatment*scale(mean.days.forelimb)*mean.mm.smi+ post.mm.weeks.num + (1|clutchtank), data = morph.data.juv.summ, na.action = na.omit, REML=FALSE)
+
+lmm.intxn1 <- lmer(mean.smi ~ treatment + scale(mean.days.forelimb)*mean.mm.smi + post.mm.weeks.num + (1|clutchtank), data = morph.data.juv.summ, na.action = na.omit, REML=FALSE)
+
+lmm.nointxn <- lmer(mean.smi ~ treatment + scale(mean.days.forelimb) + mean.mm.smi + post.mm.weeks.num + (1|clutchtank), data = morph.data.juv.summ, na.action = na.omit, REML=FALSE)
+
+lmm.null<- lmer(mean.smi ~ 1 + (1|clutchtank), data = morph.data.juv.summ, na.action = na.omit, REML=FALSE)
+
+# model selection using likelihood ratio test
+anova(lmm.full, lmm.intxn1, lmm.nointxn, lmm.null, test="Chisq")
+
+# Final Model
+final.mod = lmm.nointxn
+Anova(final.mod, type = "II")
+summary(final.mod)
+
+vcov(final.mod) |> cov2cor() #assess correlations between fixed effects
+
+# check assumptions
+simulationOutput <- simulateResiduals(fittedModel = final.mod, quantreg=T, plot = T) #provides summary of model fitting tests
+
+testDispersion(simulationOutput) #tests for over- and under-dispersion
+testZeroInflation(simulationOutput) #tests if more zeroes than expected
+testCategorical(simulationOutput, catPred = morph.data.juv.summ$treatment) #tests residuals against a categorical predictor to assess homogeneity of variance; heteroscedasticity means that there is a systematic dependency of the dispersion / variance on another variable in the model...it means that the level of over/underdispersion depends on another parameter.
+testOutliers(simulationOutput)
+
+#post-hoc pairwise comparisons
+emmeans(final.mod, pairwise ~ treatment)
+
+# create dataframe of predicted values that can be plotted on ggplot later
+# predictions using ggeffects (suggested by Susan Durham)
+predicted.df.bodycond.juv.summ <- ggpredict(final.mod, terms = c("post.mm.weeks.num [all]"), type = "random", interval = "confidence")
+
 
 # ANALYZE DATA: Effect of treatment and larval duration on mean smi to show that larval duration influences mean smi ---------------------
 # model definition
@@ -2150,15 +2500,15 @@ ggplot(data = morph.data.corr, aes(y=estimate, x = post.mm.weeks, color = metric
 
 
 
-# PLOT DATASETS: Effect of developmental speed and treatment on morphometrics AT metamorphosis ---------------------
+# PLOT DATASETS: Effect of developmental speed and treatment on morphometrics & SMI AT metamorphosis ---------------------
 
 plot.morph.mm.mass <- ggplot() + 
-  geom_jitter(width = 0.8, size = 2.5, alpha = 0.7, data = morph.data.mm, aes(y=mass.g, x = days.forelimb, color = treatment)) +
-  geom_ribbon(data = predicted.df.mm,
+  geom_point(size = 2.5, alpha = 0.7, data = morph.data.mm, aes(y=mass.g, x = days.forelimb, color = treatment)) +
+  geom_ribbon(data = predicted.df.morph.mm,
               alpha = 0.4,
-              mapping = aes(x = x, y = predicted, ymin = conf.low, ymax = conf.high), show.legend = FALSE) +
+              mapping = aes(x = x, y = predicted, ymin = conf.low, ymax = conf.high, group = group), show.legend = FALSE) +
   #scale_color_gradient(low = "gray85", high = "gray1") +
-  geom_line(data = predicted.df.mm, size = 1, aes(x = x, y = predicted)) +
+  geom_line(data = predicted.df.morph.mm, size = 1, aes(x = x, y = predicted, group = group, color = group)) +
   scale_color_manual(values=c(natparks.pals("BryceCanyon")[3], natparks.pals("BryceCanyon")[1])) +
   theme_bw() +
   theme(legend.position = c(0.02, 0.98),
@@ -2171,21 +2521,21 @@ plot.morph.mm.mass <- ggplot() +
         axis.title.y = element_text(size=12),
         panel.grid.major = element_blank(), 
         panel.grid.minor = element_blank()) +
-  scale_y_continuous(name = "mass (g) at metamorphosis", limits=c(0.05, 0.30), breaks = seq(0.05,0.30,.05)) +
-  scale_x_continuous(name = "larval duration (days)", limits = c(40, 80), breaks = seq(40, 75, by = 5))
+  scale_y_continuous(name = "mass (g) at metamorphosis") +
+  scale_x_continuous(name = "larval duration (days)", limits = c(42, 75), breaks = seq(40, 75, by = 5))
 
-plot.morph.mm.smi <- ggplot() + 
-  geom_jitter(width = 0.8, size = 2.5, alpha = 0.7, data = morph.data.mm, aes(y=smi, x = days.forelimb, color = treatment)) +
-  geom_ribbon(data = predicted.df.bodycond,
+plot.morph.mm.smi.1 <- ggplot() + 
+  geom_point(size = 3, alpha = 1, pch = 21, stroke = 1, data = morph.data.mm, aes(y=smi, x = mass.g, color = treatment, fill = days.forelimb)) +
+ scale_fill_gradient(low = "gray85", high = "gray1") + 
+ scale_color_manual(values = c(natparks.pals("BryceCanyon")[3], natparks.pals("BryceCanyon")[1])) +
+  geom_ribbon(data = predicted.df.bodycond.mass,
               alpha = 0.4,
               mapping = aes(x = x, y = predicted, ymin = conf.low, ymax = conf.high), show.legend = FALSE) +
-  #scale_color_gradient(low = "gray85", high = "gray1") +
-  geom_line(data = predicted.df.bodycond, size = 1, aes(x = x, y = predicted)) +
-  scale_color_manual(values=c(natparks.pals("BryceCanyon")[3], natparks.pals("BryceCanyon")[1])) +
+  geom_line(data = predicted.df.bodycond.mass, size = 1, aes(x = x, y = predicted)) +
   theme_bw() +
+  labs(color="larval duration (days)") +
   theme(legend.position = c(0.02, 0.98),
         legend.justification = c("left", "top"),
-        legend.title = element_blank(),
         legend.text = element_text(size=10),
         axis.text.x=element_text(size=12, color = "black"), 
         axis.text.y=element_text(size=12, color = "black"), 
@@ -2193,24 +2543,79 @@ plot.morph.mm.smi <- ggplot() +
         axis.title.y = element_text(size=12),
         panel.grid.major = element_blank(), 
         panel.grid.minor = element_blank()) +
-  scale_y_continuous(name = "scaled mass index at metamorphosis", limits=c(0.05, 0.30), breaks = seq(0.05,0.30,.05)) +
-  scale_x_continuous(name = "larval duration (days)", limits = c(40, 80), breaks = seq(40, 75, by = 5))
+  scale_y_continuous(name = "scaled mass index at metamorphosis") +
+  scale_x_continuous(name = "mass (g)")
+
+plot.morph.mm.smi.2 <- ggplot() + 
+  geom_jitter(width = 0.3, size = 3, stroke = 1, alpha = 1, pch = 21, data = morph.data.mm, aes(y=smi, x = days.forelimb, color = treatment, fill = mass.g)) +
+  scale_fill_gradient(low = "gray85", high = "gray1") + 
+  scale_color_manual(values = c(natparks.pals("BryceCanyon")[3], natparks.pals("BryceCanyon")[1])) +
+  geom_ribbon(data = predicted.df.bodycond.daysforelimb,
+              alpha = 0.4,
+              mapping = aes(x = x, y = predicted, ymin = conf.low, ymax = conf.high), show.legend = FALSE) +
+  geom_line(data = predicted.df.bodycond.daysforelimb, size = 1, aes(x = x, y = predicted)) +
+  theme_bw() +
+  labs(fill="metamorphic mass (g)") +
+  theme(legend.position = c(0.02, 0.98),
+        legend.justification = c("left", "top"),
+        legend.text = element_text(size=10),
+        axis.text.x=element_text(size=12, color = "black"), 
+        axis.text.y=element_text(size=12, color = "black"), 
+        axis.title.x=element_text(size=12, color = "black"), 
+        axis.title.y = element_text(size=12),
+        panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank()) +
+  scale_y_continuous(name = "scaled mass index at metamorphosis") +
+  scale_x_continuous(name = "larval duration (days)", limits = c(42, 75), breaks = seq(40, 75, by = 5))
+
+ggplot() + 
+  geom_jitter(width = 0.3, size = 1, alpha = 0.6, pch = 21, stroke = 1, data = morph.data.mm, aes(y=smi, x = mean.days.forelimb, color = treatment, fill = treatment)) +
+  geom_point(size = 3, alpha = 1, pch = 21, stroke = 1, data = morph.data.mm, color = "black", aes(y=mean.mm.smi, x = mean.days.forelimb, fill = treatment, group = juv.tank.id)) +
+  scale_color_manual(values = c(natparks.pals("BryceCanyon")[3], natparks.pals("BryceCanyon")[1])) +
+  scale_fill_manual(values = c(natparks.pals("BryceCanyon")[3], natparks.pals("BryceCanyon")[1])) +
+  geom_ribbon(data = test,
+              alpha = 0.4,
+              mapping = aes(x = x, y = predicted, ymin = conf.low, ymax = conf.high, group = group), show.legend = FALSE) +
+  geom_line(data = test, size = 1, aes(x = x, y = predicted, color = group)) +
+  theme_bw() +
+  theme(legend.position = c(0.02, 0.98),
+        legend.justification = c("left", "top"),
+        legend.text = element_text(size=10),
+        axis.text.x=element_text(size=12, color = "black"), 
+        axis.text.y=element_text(size=12, color = "black"), 
+        axis.title.x=element_text(size=12, color = "black"), 
+        axis.title.y = element_text(size=12),
+        panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank()) +
+  scale_y_continuous(name = "mean tank scaled mass index at metamorphosis") +
+  scale_x_continuous(name = "mean tank larval duration (days)")
 
 
 # PLOT DATASETS: Effect of metamorphic mass on morphometrics at and after metamorphosis ---------------------
 
 # x-y plot with observed and glmm-predicted values for mass
-plot.morph4 <- ggplot() + 
-  # geom_ribbon(data = predicted.df.juv,
+plot.morph.mass <- ggplot() + 
+  # geom_ribbon(data = predicted.df.juv.morph,
   #             alpha = 0.75,
-  #             mapping = aes(x = as.numeric(x.num), y = predicted, fill=factor(group, levels = c("large", "med", "small")), ymin = conf.low, max = conf.high), show.legend = FALSE) +
-  geom_jitter(width = 0.8, size = 2.5, alpha = 0.8, data = morph.data.mm.juv, aes(y=mass.g, x = post.mm.weeks.num, color = mean.mm.mass.g)) +
-  #geom_line(data = predicted.df.juv, size = 1, aes(x = x.num, y = predicted, linetype=factor(group, levels = c("large", "med", "small")))) +
-  scale_fill_manual(values = c("gray1", "gray50", "gray85")) +
+  #             mapping = aes(x = x, y = predicted, fill=factor(group, levels = c("large", "med", "small")), ymin = conf.low, max = conf.high), show.legend = FALSE) +
+  geom_jitter(width = 0.8, size = 2, alpha = 1, data = morph.data.mm.juv, aes(y=mass.g, x = post.mm.weeks.num, color = mean.mm.mass.g, group = clutchtank)) + #individual level response colored by mean tank mass at metamorphosis
+  # scale_fill_manual(values = c("gray1", "gray50", "gray85")) +
+  geom_line(data = morph.data.mm.juv.summ, pch = 21, size = 0.8, aes(y=mean.mass.g, x = post.mm.weeks.num, color = mean.mm.mass.g, group = clutchtank)) +
   scale_color_gradient(low = "gray85", high = "gray1") +
+  scale_fill_gradient(low = "gray85", high = "gray1") +
+  
+  new_scale_fill() +
+  geom_point(data = morph.data.mm.juv.summ, pch = 21, alpha = 1, size = 4, stroke = 1, aes(y=mean.mass.g, x = post.mm.weeks.num, fill = treatment, color = mean.mm.mass.g,  group = clutchtank)) + #tank level response
+  
+  new_scale_color() +
+  geom_line(data = predicted.df.morph.juv, color = "black", linetype = 2, size = 2, aes(x = x, y = predicted)) + #from model on individual mass but with log mass and poly3 week
+  geom_line(data = predicted.df.morph.juv.summ, size = 2, linetype = 3, aes(x = x, y = predicted)) + #from model on tank-level means for mass but with log mass and poly3 week
+  
+  scale_color_manual(values=c(natparks.pals("BryceCanyon")[3], natparks.pals("BryceCanyon")[1])) +
+  scale_fill_manual(values=c(natparks.pals("BryceCanyon")[3], natparks.pals("BryceCanyon")[1])) +
+
   scale_linetype_manual(values=c(1,2,3)) +
   theme_bw() +
-  labs(linetype="mean tank metamorphic mass (category)", color="mean tank metamorphic mass (g)") +
   theme(legend.position = c(0.02, 0.98),
         legend.justification = c("left", "top"),
         legend.title = element_text(size=10),
@@ -2221,15 +2626,180 @@ plot.morph4 <- ggplot() +
         axis.title.y = element_text(size=12),
         panel.grid.major = element_blank(), 
         panel.grid.minor = element_blank()) +
-  scale_y_continuous(name = "individual metamorphic mass (g)") + 
+  scale_y_continuous(name = "mass (g)") + 
   scale_x_continuous(name = "post-metamorphic age (weeks)", breaks = unique(morph.data.mm.juv$post.mm.weeks.num), labels = unique(morph.data.mm.juv$post.mm.weeks))
 
-ggplot(data = morph.data.mm.juv, aes(x=mass.g)) +
-  geom_freqpoly() +
-  facet_grid(rows= vars(post.mm.weeks))
 
 
-# PLOT DATASETS: Effect of metamorphic mass on body condition at and after metamorphosis ---------------------
+
+
+# PLOT DATASETS: Effect of metamorphic body condition on body condition at and after metamorphosis ---------------------
+ggplot(data=morph.data.mm.juv,
+       aes(y=smi, x = mass.g, color = mean.mm.smi, group = clutchtank)) +
+  geom_point() +
+  facet_grid(rows = vars(post.mm.weeks)) +
+  geom_smooth(se = F, size = 0.8, alpha = 0.7, method = "lm") +
+  geom_smooth(se = T, size = 0.8, alpha = 0.6, method = "lm", color = "red", data=morph.data.mm.juv,
+              aes(y=smi, x = mass.g, color = mean.mm.smi, group = treatment, linetype = treatment))
+
+
+# assess tank-level vs. individual-level fits with mean smi
+plot.smi.1 <- ggplot() + 
+  geom_jitter(width = 0.8, size = 2, alpha = 1, data = morph.data.mm.juv, aes(y=smi, x = post.mm.weeks.num, color = mean.mm.smi, group = clutchtank)) + #individual level response colored by mean tank mass at metamorphosis
+  # scale_fill_manual(values = c("gray1", "gray50", "gray85")) +
+  geom_line(data = morph.data.mm.juv.summ, pch = 21, size = 0.8, aes(y=mean.smi, x = post.mm.weeks.num, color = mean.mm.smi, group = clutchtank)) +
+  scale_color_gradient(low = "gray85", high = "gray1") +
+  scale_fill_gradient(low = "gray85", high = "gray1") +
+  
+  new_scale_fill() +
+  # geom_ribbon(data = predicted.df.bodycond.juv,
+  #             alpha = 0.5,
+  #             mapping = aes(x = x, y = predicted, fill = group, group = group, ymin = conf.low, max = conf.high), show.legend = FALSE) +
+  geom_point(data = morph.data.mm.juv.summ, pch = 21, alpha = 1, size = 4, stroke = 1, aes(y=mean.smi, x = post.mm.weeks.num, fill = treatment, color = mean.mm.smi,  group = clutchtank)) + #tank level response
+  
+  new_scale_color() +
+  geom_line(data = predicted.df.bodycond.juv, linetype = 2, size = 2, aes(x = x, y = predicted, color = group)) + #from model on individual smi
+  geom_line(data = predicted.df.bodycond.juv.summ, color = "black", size = 2, linetype = 3, aes(x = x, y = predicted)) + #from model on tank-level means for smi
+  
+  scale_color_manual(values=c(natparks.pals("BryceCanyon")[3], natparks.pals("BryceCanyon")[1])) +
+  scale_fill_manual(values=c(natparks.pals("BryceCanyon")[3], natparks.pals("BryceCanyon")[1])) +
+  
+  scale_linetype_manual(values=c(1,2,3)) +
+  theme_bw() +
+  theme(legend.justification = c("left", "top"),
+        legend.title = element_text(size=10),
+        legend.text = element_text(size=10),
+        axis.text.x=element_text(size=12, color = "black"), 
+        axis.text.y=element_text(size=12, color = "black"), 
+        axis.title.x=element_text(size=12, color = "black"), 
+        axis.title.y = element_text(size=12),
+        panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank()) +
+  scale_y_continuous(name = "scaled mass index") + 
+  scale_x_continuous(name = "post-metamorphic age (weeks)", breaks = unique(morph.data.mm.juv$post.mm.weeks.num), labels = unique(morph.data.mm.juv$post.mm.weeks))
+
+# assess tank-level vs. individual-level fits with mean days forelimb
+plot.smi.2 <-ggplot() + 
+  geom_jitter(width = 0.8, size = 2, alpha = 1, data = morph.data.mm.juv, aes(y=smi, x = post.mm.weeks.num, color = mean.days.forelimb, group = clutchtank)) + #individual level response colored by mean tank mass at metamorphosis
+  # scale_fill_manual(values = c("gray1", "gray50", "gray85")) +
+  geom_line(data = morph.data.mm.juv.summ, pch = 21, size = 0.8, aes(y=mean.smi, x = post.mm.weeks.num, color = mean.days.forelimb, group = clutchtank)) +
+  scale_color_gradient(low = "gray85", high = "gray1", limits = c(47,71)) +
+  scale_fill_gradient(low = "gray85", high = "gray1", limits = c(47,71)) +
+  
+  new_scale_fill() +
+  # geom_ribbon(data = predicted.df.bodycond.juv,
+  #             alpha = 0.5,
+  #             mapping = aes(x = x, y = predicted, fill = group, group = group, ymin = conf.low, max = conf.high), show.legend = FALSE) +
+  geom_point(data = morph.data.mm.juv.summ, pch = 21, alpha = 1, size = 4, stroke = 1, aes(y=mean.smi, x = post.mm.weeks.num, fill = treatment, color = mean.days.forelimb,  group = clutchtank)) + #tank level response
+  
+  new_scale_color() +
+  geom_line(data = predicted.df.bodycond.juv, linetype = 2, size = 2, aes(x = x, y = predicted, color = group)) + #from model on individual smi
+  geom_line(data = predicted.df.bodycond.juv.summ, color = "black", size = 2, linetype = 3, aes(x = x, y = predicted)) + #from model on tank-level means for smi
+  
+  scale_color_manual(values=c(natparks.pals("BryceCanyon")[3], natparks.pals("BryceCanyon")[1])) +
+  scale_fill_manual(values=c(natparks.pals("BryceCanyon")[3], natparks.pals("BryceCanyon")[1])) +
+  
+  scale_linetype_manual(values=c(1,2,3)) +
+  theme_bw() +
+  theme(legend.justification = c("left", "top"),
+        legend.title = element_text(size=10),
+        legend.text = element_text(size=10),
+        axis.text.x=element_text(size=12, color = "black"), 
+        axis.text.y=element_text(size=12, color = "black"), 
+        axis.title.x=element_text(size=12, color = "black"), 
+        axis.title.y = element_text(size=12),
+        panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank()) +
+  scale_y_continuous(name = "scaled mass index") + 
+  scale_x_continuous(name = "post-metamorphic age (weeks)", breaks = unique(morph.data.mm.juv$post.mm.weeks.num), labels = unique(morph.data.mm.juv$post.mm.weeks))
+
+
+
+# x-y plot with observed and glmm-predicted values for mass
+plot.smi.1 <- ggplot() + 
+  facet_grid(cols=vars(treatment)) +
+  # geom_ribbon(data = predicted.df.juv,
+  #             alpha = 0.75,
+  #             mapping = aes(x = as.numeric(x.num), y = predicted, fill=factor(group, levels = c("large", "med", "small")), ymin = conf.low, max = conf.high), show.legend = FALSE) +
+  geom_jitter(width = 0.8, size = 2.5, alpha = 0.8, data = morph.data.mm.juv, aes(y=smi, x = post.mm.weeks.num, color = mean.mm.smi, group = clutchtank)) +
+  geom_smooth(se = F, size = 0.8, alpha = 0.7, method = "lm", data = morph.data.mm.juv, aes(y=smi, x = post.mm.weeks.num, color = mean.mm.smi, group=clutchtank)) +
+  #geom_line(data = predicted.df.juv, size = 1, aes(x = x.num, y = predicted, linetype=factor(group, levels = c("large", "med", "small")))) +
+  scale_fill_manual(values = c("gray1", "gray50", "gray85")) +
+  scale_color_gradient(low = "gray85", high = "gray1") +
+  scale_linetype_manual(values=c(1,2,3)) +
+  theme_bw() +
+  labs(color="mean tank smi") +
+  theme(legend.position = c(0.98, 0.98),
+        legend.justification = c("right", "top"),
+        legend.title = element_text(size=10),
+        legend.text = element_text(size=10),
+        axis.text.x=element_text(size=12, color = "black"), 
+        axis.text.y=element_text(size=12, color = "black"), 
+        axis.title.x=element_text(size=12, color = "black"), 
+        axis.title.y = element_text(size=12),
+        panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank()) +
+  scale_y_continuous(name = "individual smi") + 
+  scale_x_continuous(name = "post-metamorphic age (weeks)", breaks = unique(morph.data.mm.juv$post.mm.weeks.num), labels = unique(morph.data.mm.juv$post.mm.weeks))
+
+plot.smi.2 <- ggplot() + 
+  facet_grid(cols=vars(treatment)) +
+  # geom_ribbon(data = predicted.df.juv,
+  #             alpha = 0.75,
+  #             mapping = aes(x = as.numeric(x.num), y = predicted, fill=factor(group, levels = c("large", "med", "small")), ymin = conf.low, max = conf.high), show.legend = FALSE) +
+  geom_jitter(width = 0.8, size = 2.5, alpha = 0.8, data = morph.data.mm.juv, aes(y=smi, x = post.mm.weeks.num, color = mean.mm.mass.g, group = clutchtank)) +
+  geom_smooth(se = F, size = 0.8, alpha = 0.7, method = "lm", data = morph.data.mm.juv, aes(y=smi, x = post.mm.weeks.num, color = mean.mm.mass.g, group=clutchtank)) +
+  #geom_line(data = predicted.df.juv, size = 1, aes(x = x.num, y = predicted, linetype=factor(group, levels = c("large", "med", "small")))) +
+  scale_fill_manual(values = c("gray1", "gray50", "gray85")) +
+  scale_color_gradient(low = "gray85", high = "gray1") +
+  scale_linetype_manual(values=c(1,2,3)) +
+  theme_bw() +
+  labs(color="mean metamorphic mass (g)") +
+  theme(legend.position = c(0.98, 0.98),
+        legend.justification = c("right", "top"),
+        legend.title = element_text(size=10),
+        legend.text = element_text(size=10),
+        axis.text.x=element_text(size=12, color = "black"), 
+        axis.text.y=element_text(size=12, color = "black"), 
+        axis.title.x=element_text(size=12, color = "black"), 
+        axis.title.y = element_text(size=12),
+        panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank()) +
+  scale_y_continuous(name = "individual smi") + 
+  scale_x_continuous(name = "post-metamorphic age (weeks)", breaks = unique(morph.data.mm.juv$post.mm.weeks.num), labels = unique(morph.data.mm.juv$post.mm.weeks))
+
+plot.smi.3 <- ggplot() + 
+  facet_grid(cols=vars(treatment)) +
+  # geom_ribbon(data = predicted.df.juv,
+  #             alpha = 0.75,
+  #             mapping = aes(x = as.numeric(x.num), y = predicted, fill=factor(group, levels = c("large", "med", "small")), ymin = conf.low, max = conf.high), show.legend = FALSE) +
+  geom_jitter(width = 0.8, size = 2.5, alpha = 0.8, data = morph.data.mm.juv, aes(y=smi, x = post.mm.weeks.num, color = mean.days.forelimb, group = clutchtank)) +
+  geom_smooth(se = F, size = 0.8, alpha = 0.7, method = "lm", data = morph.data.mm.juv, aes(y=smi, x = post.mm.weeks.num, color = mean.days.forelimb, group=clutchtank)) +
+  #geom_line(data = predicted.df.juv, size = 1, aes(x = x.num, y = predicted, linetype=factor(group, levels = c("large", "med", "small")))) +
+  scale_fill_manual(values = c("gray1", "gray50", "gray85")) +
+  scale_color_gradient(low = "gray85", high = "gray1") +
+  scale_linetype_manual(values=c(1,2,3)) +
+  theme_bw() +
+  labs(color="mean larval duration (days)") +
+  theme(legend.position = c(0.98, 0.98),
+        legend.justification = c("right", "top"),
+        legend.title = element_text(size=10),
+        legend.text = element_text(size=10),
+        axis.text.x=element_text(size=12, color = "black"), 
+        axis.text.y=element_text(size=12, color = "black"), 
+        axis.title.x=element_text(size=12, color = "black"), 
+        axis.title.y = element_text(size=12),
+        panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank()) +
+  scale_y_continuous(name = "individual smi") + 
+  scale_x_continuous(name = "post-metamorphic age (weeks)", breaks = unique(morph.data.mm.juv$post.mm.weeks.num), labels = unique(morph.data.mm.juv$post.mm.weeks))
+
+ggarrange(plot.smi.1, plot.smi.2, plot.smi.3,
+          ncol = 1,
+          nrow = 3,
+          common.legend = FALSE)
+
+
 ggplot() + 
   geom_ribbon(data = predicted.df.bodycond.juv,
               alpha = 0.75,
@@ -2360,6 +2930,13 @@ ggarrange(plot.morph.tad.growth.tl.ld, plot.morph.tad.growth.tl.hd,
           legend = NULL,
           labels = c("a", "b", "c", "d"),
           font.label = list(size = 20, color = "black"))
+
+ggarrange(plot.morph.mass, labels = c("a"), font.label = list(size = 20, color = "black"),
+          ggarrange(plot.smi.1, plot.smi.2, labels = c("b", "c"),font.label = list(size = 20, color = "black", ncol = 2)),
+          nrow = 2,
+          common.legend = FALSE,
+          legend = NULL
+          )
 
 
 # SUMMARY TABLES: Morphological metrics at and after metamorphosis ---------------------
@@ -2497,3 +3074,84 @@ morph.data.summ = morph.data.tad %>%
   filter(is.na(tl.cm) == FALSE) %>%
   summarise(unique.weeks = length(unique(week)),
             weeks = paste(unique(week), collapse=","))
+
+
+# TEMPORARY: Figure out relationship between mean larval duration, mean metamorphic mass, and mean metamorphic smi  -----------------------
+# as larval duration increases, mass decreases, body condition increases
+ggarrange(ggplot(data=morph.data.mm, aes(x=mean.days.forelimb, y=mean.mm.mass.g, color = treatment)) +
+  geom_point() +
+  #facet_grid(cols=vars(treatment)) +
+  stat_smooth(method = "lm"),
+  
+  ggplot(data=morph.data.mm, aes(x=days.forelimb, y=mass.g, color = treatment)) +
+    geom_point() +
+    #facet_grid(cols=vars(treatment)) +
+    stat_smooth(method = "lm"),
+  
+  ncol = 2, nrow = 1)
+
+ggarrange(ggplot(data=morph.data.mm, aes(x=mean.mm.mass.g, y=mean.mm.smi, color = treatment)) +
+  geom_point() +
+  #facet_grid(cols=vars(treatment)) +
+  stat_smooth(method = "lm"),
+  
+  ggplot(data=morph.data.mm, aes(x=mass.g, y=smi, color = treatment)) +
+    geom_point() +
+    #facet_grid(cols=vars(treatment)) +
+    stat_smooth(method = "lm"),
+  
+  ncol = 2, nrow = 1)
+
+
+ggarrange(ggplot(data=morph.data.mm, aes(x=mean.days.forelimb, y=mean.mm.smi, color = treatment)) +
+  geom_point() +
+  #facet_grid(cols=vars(treatment)) +
+  stat_smooth(method = "lm"),
+  
+  ggplot(data=morph.data.mm, aes(x=days.forelimb, y=smi, color = treatment)) +
+    geom_point() +
+    #facet_grid(cols=vars(treatment)) +
+    stat_smooth(method = "lm"),
+  
+  ncol = 2, nrow = 1)
+
+
+ggarrange(ggplot(data=morph.data.mm, aes(x=clutchtank, y=mass.g, color = treatment)) +
+            facet_grid(cols = vars(treatment)) +
+            geom_boxplot() +
+            scale_y_continuous(limits = c(0.05,0.3)),
+          
+          ggplot(data=morph.data.mm, aes(x=clutchtank, y=mean.mm.mass.g, color = treatment)) +
+            facet_grid(cols = vars(treatment)) +
+            geom_boxplot() +
+            scale_y_continuous(limits = c(0.05,0.3)),
+          
+          ncol = 2, nrow = 1)
+
+ggarrange(ggplot(data=morph.data.mm, aes(x=days.forelimb, y=smi, color = treatment)) +
+  facet_grid(cols = vars(treatment)) +
+  geom_point() +
+    stat_smooth(method = "lm") +
+    scale_y_continuous(limits = c(0.10, 0.25)),
+  
+ggplot(data=morph.data.mm, aes(x=mean.days.forelimb, y=mean.mm.smi, color = treatment)) +
+  facet_grid(cols = vars(treatment)) +
+  geom_point() +
+  stat_smooth(method = "lm") +
+  scale_y_continuous(limits = c(0.10, 0.25)),
+
+ncol = 2, nrow = 1)
+  
+
+summary(lmer(mean.mm.smi ~ mean.days.forelimb + (1|clutchtank), data = morph.data.mm[morph.data.mm$treatment == "low density",], REML = FALSE))
+summary(lmer(mean.mm.smi ~ mean.days.forelimb + (1|clutchtank), data = morph.data.mm[morph.data.mm$treatment == "high density",], REML = FALSE))
+lmm.test <- lmer(mean.mm.smi ~ treatment*mean.days.forelimb + (1|clutchtank), data = morph.data.mm, REML = FALSE)
+
+test = ggeffects::ggpredict(lmm.test, terms = c("mean.days.forelimb [all]", "treatment"), type = "random", interval = "confidence")
+
+ggplot(data=morph.data.mm, aes(x=mean.days.forelimb, y=smi, group = clutchtank, color = treatment)) +
+  geom_boxplot()
+  #facet_grid(cols=vars(treatment)) +
+  #stat_smooth(method = "lm")
+  
+
