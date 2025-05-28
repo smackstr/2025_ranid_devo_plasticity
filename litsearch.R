@@ -1,6 +1,7 @@
-# this script creates a methodology figure for the 2023 ranid developmental paper
-# compares our methodology with those of other published studies on ranids using rearing density as a treatment
+# README -------------------------
+# this script (1) compares our methodology with those of other published studies on ranids using rearing density as a treatment, (2) creates a methodology figure for the 2025 ranid developmental paper
 
+# LOAD PACKAGES and SET WD ------------------------------------
 rm(list = ls())
 
 library(dplyr)
