@@ -10,6 +10,8 @@ library(xfun)
 library(lme4)
 library(car)
 library(DHARMa)
+library(ggsignif)
+library(MuMIn)
 
 setwd("~/Desktop/R Working Directory/Databases")
 
@@ -17,11 +19,14 @@ setwd("~/Desktop/R Working Directory/Databases")
 
 # read in databases for developmental data and survival data (provides tank-level percent metamorphosed by end of experiment)
 devo.data = read.csv("Database_Metamorphosis - Metamorphosis Log.csv", header = TRUE, skip = 0, na.strings = "NA")
+devo.data.nonmm = read.csv("Database_Metamorphosis - Non-Metamorphosis Log.csv", header = TRUE, skip = 0, na.strings = "NA") #read in metamorphosis timing log database
+
 survi.data.exp = read.csv("Database_Survivorship - Tadpole Experiment Survivorship.csv", header = TRUE, skip = 0, na.strings = "NA")
 survi.data.tad = read.csv("Database_Survivorship - Tadpole Weekly Survivorship.csv", header = TRUE, skip = 0, na.strings = "NA")
 
 # subset databases to only include Rana sylvatica
 devo.data = devo.data[devo.data$gs.code == "RS",]
+devo.data.nonmm = devo.data.nonmm[devo.data.nonmm$gs.code == "RS",]
 survi.data.exp = survi.data.exp[survi.data.exp$gs.code == "RS",]
 survi.data.tad = survi.data.tad[survi.data.tad$gs.code == "RS",]
 
@@ -31,6 +36,7 @@ devo.data = devo.data[devo.data$first.six == "yes",]
 
 #change "control" to "low density" - called the low density treatment "CO for "control" during experiments because it has very different letters than "HD" for "high density", so was less likely to get confused. But technically it's a low density vs. high density comparison
 devo.data$treatment[devo.data$treatment == "control"] = "low density"
+devo.data.nonmm$treatment[devo.data.nonmm$treatment == "control"] = "low density"
 survi.data.exp$treatment[survi.data.exp$treatment == "control"] = "low density"
 survi.data.tad$treatment[survi.data.tad$treatment == "control"] = "low density"
 
@@ -42,6 +48,9 @@ devo.data$larv.tank.id = factor(devo.data$larv.tank.id)
 devo.data$juv.tank.id = factor(devo.data$juv.tank.id)
 devo.data$days.forelimb = as.integer(devo.data$days.forelimb)
 devo.data$days.forelimb.tail = as.integer(devo.data$days.forelimb.tail)
+
+devo.data.nonmm$treatment = factor(devo.data.nonmm$treatment, levels = c("low density", "high density"))
+devo.data.nonmm$larv.tank.id = factor(devo.data.nonmm$larv.tank.id)
 
 survi.data.exp$treatment = factor(survi.data.exp$treatment, levels = c("low density", "high density"))
 survi.data.exp$larv.tank.id = factor(survi.data.exp$larv.tank.id)
@@ -60,12 +69,15 @@ survi.data.exp$week = factor(survi.data.exp$week, ordered = TRUE, levels = c(10,
 survi.data.exp$unique.id = paste(survi.data.exp$gs.code, survi.data.exp$clutch, survi.data.exp$larv.tank.id, sep = "_")
 devo.data$unique.id = paste(devo.data$gs.code, devo.data$clutch, devo.data$larv.tank.id, sep = "_")
 devo.data$unique.id.indiv = paste(devo.data$gs.code, devo.data$clutch, devo.data$larv.tank.id, devo.data$animal.id, sep = "_")
+devo.data.nonmm$unique.id = paste(devo.data.nonmm$gs.code, devo.data.nonmm$clutch, devo.data.nonmm$larv.tank.id, sep = "_")
 survi.data.tad$unique.id = paste(survi.data.tad$gs.code, survi.data.tad$clutch, survi.data.tad$larv.tank.id, survi.data.tad$week, sep = "_")
 
 # rename two columns to match survi.data.tad for later binding
 colnames(survi.data.exp)[11] = "photo.num"
 colnames(survi.data.exp)[12] = "leth.samp.num.cumul"
 
+#create column to calculate average gosner stage
+devo.data.nonmm$avg.gosner.stage = (devo.data.nonmm$min.gosner.stage + devo.data.nonmm$max.gosner.stage)/2
 
 
 # COMPILE DATASETS: Add Developmental Data (mean days to forelimb) to survi.data.tad.exp -----------------------
@@ -304,8 +316,42 @@ for(i in 1:length(unique(survi.data.exp$unique.id))){
   temp = c(rep(42, survi.data.exp$metamorph.num.cumul[survi.data.exp$unique.id == unique(survi.data.exp$unique.id)[i]]), devo.data.nonmm$avg.gosner.stage[devo.data.nonmm$unique.id ==  unique(survi.data.exp$unique.id)[i]])
   
   #find mean of vector. purposefully not adding na.rm = TRUE so temporarily subset out the tanks we haven't staged yet
-  survi.data.exp$tank.devo.stage[survi.data.exp$unique.id == unique(survi.data.exp$unique.id)[i]] = mean(temp)
+  survi.data.exp$tank.devo.stage[survi.data.exp$unique.id == unique(survi.data.exp$unique.id)[i]] = mean(temp, na.rm = TRUE)
 }
+
+
+# COMPILE DATASETS: Create long.form Gosner staging INCLUDING METAMORPHOSED INDIVIDUALS  -----------------------
+
+# create column to store the developmental data, mean mass at mm represents average mass at metamorphosis for each juvenile tank
+
+# fill developmental data column for survi.data.exp.
+for(i in 1:length(unique(survi.data.exp$unique.id))){
+  
+  temp1 = devo.data.nonmm[devo.data.nonmm$unique.id == unique(survi.data.exp$unique.id)[i], c(1:6,13)]
+  
+  #create vector that includes all the ones that already metamorphosed as stage 42 + non-metamorphosed stage
+  temp.mm = survi.data.exp$metamorph.num.cumul[survi.data.exp$unique.id == unique(survi.data.exp$unique.id)[i]] #number of individuals "stuck" at 42
+  
+  temp1[nrow(temp1) + temp.mm,] <- NA #add number of empty rows needed
+
+  temp1[is.na(temp1[,1]) == TRUE,1] = temp1[1,1]
+  temp1[is.na(temp1[,2]) == TRUE,2] = temp1[1,2]
+  temp1[is.na(temp1[,3]) == TRUE,3] = temp1[1,3]
+  temp1[is.na(temp1[,4]) == TRUE,4] = temp1[1,4]
+  temp1[is.na(temp1[,5]) == TRUE,5] = temp1[1,5]
+  temp1[is.na(temp1[,6]) == TRUE,6] = temp1[1,6]
+
+  temp1[is.na(temp1[,7]) == TRUE,7] = 42
+  
+  if(i==1){devo.data.longform = temp1}else{
+    devo.data.longform = rbind(devo.data.longform, temp1)
+  }
+  
+rm(temp1, temp.mm)
+
+}
+
+devo.data.longform$clutchtank = factor(paste(devo.data.longform$clutch, devo.data.longform$larv.tank.id, sep = "_"))
 
 
 # COMPILE DATASETS: Create individual-level dataset for Gosner staging so we can visualize the distribution -----------------------
@@ -354,19 +400,27 @@ rm(temp3)
 devo.data$clutchtank = factor(paste(devo.data$clutch, devo.data$larv.tank.id, sep = "_"))
 morph.data.tad.exp.longform$clutchtank = factor(paste(morph.data.tad.exp.longform$clutch, morph.data.tad.exp.longform$larv.tank.id, sep = "_"))
 morph.data.tad.exp.longformsurvi$clutchtank = factor(paste(morph.data.tad.exp.longformsurvi$clutch, morph.data.tad.exp.longformsurvi$larv.tank.id, sep = "_"))
+survi.data.tad.exp$clutchtank = factor(paste(survi.data.tad.exp$clutch, survi.data.tad.exp$larv.tank.id, sep = "_"))
+survi.data.exp$clutchtank = factor(paste(survi.data.exp$clutch, survi.data.exp$larv.tank.id, sep = "_"))
+
+data.gstage$clutchtank = factor(paste(data.gstage$clutch, data.gstage$larv.tank.id, sep = "_"))
+
 
 
 # COMPILE DATASETS: Create 10% dataset to identify the first 10% to metamorphose for each rearing density -----------------------
 devo.data.first10 = read.csv("Database_Metamorphosis - Metamorphosis Log.csv", header = TRUE, skip = 0, na.strings = "NA")
 
 # subset databases to only include Rana sylvatica
-devo.data.first10 = devo.data.first10[devo.data.first10$gs.code == "RS",]
+devo.data.first10 = filter(devo.data.first10, gs.code == "RS")
 
 # subset databases to only include non-overflow
-devo.data.first10 = devo.data.first10[devo.data.first10$treatment != "overflow",]
+devo.data.first10 = filter(devo.data.first10, treatment != "overflow")
 
 #change "control" to "low density" - called the low density treatment "CO for "control" during experiments because it has very different letters than "HD" for "high density", so was less likely to get confused. But technically it's a low density vs. high density comparison
 devo.data.first10$treatment[devo.data.first10$treatment == "control"] = "low density"
+
+#subset out only first 10% (first 4 for low density, first 10 for high density)
+devo.data.first10 = filter(devo.data.first10, first.10perc == "yes")
 
 #change column classes
 devo.data.first10$first.six = factor(devo.data.first10$first.six, levels = c("yes", "no"))
@@ -380,21 +434,14 @@ devo.data.first10$days.forelimb.tail = as.integer(devo.data.first10$days.forelim
 # create unique.id for devo.data.first10
 devo.data.first10$unique.id = paste(devo.data.first10$gs.code, devo.data.first10$clutch, devo.data.first10$larv.tank.id, sep = "_")
 
-devo.data.first10$first.10perc = "NA"
-devo.data.first10$first.10perc[devo.data.first10$treatment == "high density" & devo.data.first10$animal.id <=10] = "yes"
-devo.data.first10$first.10perc[devo.data.first10$treatment == "high density" & devo.data.first10$animal.id >10] = "no" #but need to not filter out by yes to do this
-devo.data.first10$first.10perc[devo.data.first10$treatment == "low density" & devo.data.first10$animal.id <=6] = "yes"
-devo.data.first10$first.10perc[devo.data.first10$treatment == "low density" & devo.data.first10$animal.id >6] = "no"
-
 #how many high density tanks did we remove that hadn't reached 10?
 first10.summ = devo.data.first10 %>%
   group_by(treatment, clutch, larv.tank.id) %>%
   summarize(n = n())
-nrow(temp[first10.summ$treatment == "high density" & first10.summ$n < 10,]) #this provides number of tanks that we are removing by opportunistically looking at first 10% of tanks rather than first six individuals
+#nrow(temp[first10.summ$treatment == "high density" & first10.summ$n < 10,]) #this provides number of tanks that we are removing by opportunistically looking at first 10% of tanks rather than first six individuals
 
 #create clutchtank for later analysis
 devo.data.first10$clutchtank = paste(devo.data.first10$clutch, devo.data.first10$larv.tank.id, sep="_")
-
 
 # ANALYZE DATA: Effect of rearing density and clutch:larval tank on larval duration for FIRST SIX ---------------------
 
@@ -452,8 +499,8 @@ summary(final.mod)
 
 #since experimental study, not testing the inclusion or exclusion of fixed effects, but rather assessing what interactions among fixed effects to include in final model
 
-lmm.full <- lmer(days.forelimb ~ treatment + (1|clutchtank), data = devo.data.first10[devo.data.first10$first.10perc == "yes",], na.action = na.omit)
-lmm.null <- lmer(days.forelimb ~ 1 + (1|clutchtank), data = devo.data.first10[devo.data.first10$first.10perc == "yes",], na.action = na.omit)
+lmm.full <- lmer(days.forelimb ~ treatment + (1|clutchtank), data = devo.data.first10, na.action = na.omit)
+lmm.null <- lmer(days.forelimb ~ 1 + (1|clutchtank), data = devo.data.first10, na.action = na.omit)
 
 #model selection using likelihood-ratio test b/c nested models
 anova(lmm.full, lmm.null)
@@ -462,14 +509,13 @@ anova(lmm.full, lmm.null)
 simulateResiduals(lmm.full, quantreg=T, plot = T) #provides summary of model fitting tests
 testDispersion(lmm.full) #tests for over- and under-dispersion
 testZeroInflation(lmm.full) #tests if more zeroes than expected
-testCategorical(lmm.full, catPred = devo.data.first10$treatment[devo.data.first10$first.10perc == "yes"]) #tests residuals against a categorical predictor to assess homogeneity of variance; heteroscedasticity means that there is a systematic dependency of the dispersion / variance on another variable in the model...it means that the level of over/underdispersion depends on another parameter.
+testCategorical(lmm.full, catPred = devo.data.first10$treatment) #tests residuals against a categorical predictor to assess homogeneity of variance; heteroscedasticity means that there is a systematic dependency of the dispersion / variance on another variable in the model...it means that the level of over/underdispersion depends on another parameter.
 testOutliers(lmm.full)
 
 # Final Model: 
 final.mod = lmm.full
 car::Anova(final.mod, type = "II")
 summary(final.mod)
-
 
 
 # ANALYZE DATA: Effect of rearing density and clutch:larval tank on metamorphosis duration ---------------------
@@ -542,27 +588,54 @@ final.mod = lmm.full
 summary(final.mod)
 
 
-# ANALYZE DATA: Effect of rearing density, mean days forelimb, and clutch on average gosner stage at end of experiment ---------------------
-lmm.full <- lmer(tank.devo.stage ~ treatment*mean.days.forelimb + (1|clutch), data=survi.data.exp, na.action = na.omit)
+# ANALYZE DATA: Effect of rearing density, mean days forelimb, and clutch on tank-level average gosner stage at end of experiment ---------------------
+lmm.full <- lmer(tank.devo.stage ~ treatment + (1|clutch), data=survi.data.exp, na.action = na.omit)
+#lmm.full <- lmer(devo.stage ~ treatment + (1|clutchtank), data=data.gstage, na.action = na.omit)
 
-lmm.nointxn <- lmer(tank.devo.stage ~ treatment + mean.days.forelimb + (1|clutch), data=survi.data.exp, na.action = na.omit)
+lmm.null <- lmer(tank.devo.stage ~ 1 + (1|clutch), data=survi.data.exp, na.action = na.omit)
+#lmm.null <- lmer(devo.stage ~ 1 + (1|clutchtank), data=data.gstage, na.action = na.omit)
 
-lmm.null <- lmer(tank.devo.stage ~ (1|clutch), data=survi.data.exp, na.action = na.omit)
-anova(lmm.full, lmm.nointxn, lmm.null)
-
-# model selection using likelihood ratio test + checking whether random effect important to include
-anova(lmm.full, lmm.nointxn, lmm.null, test="Chisq")
+# model selection using likelihood ratio test
+anova(lmm.full, lmm.null, test="Chisq")
 
 # Final Model
-summary(lmm.nointxn)
+final.mod = lmm.full
 
 # check assumptions
-simulationOutput <- simulateResiduals(fittedModel = lmm.nointxn, quantreg=T, plot = T) #provides summary of model fitting tests
+simulationOutput <- simulateResiduals(fittedModel = final.mod, quantreg=T, plot = T) #provides summary of model fitting tests
 
 testDispersion(simulationOutput) #tests for over- and under-dispersion
 testZeroInflation(simulationOutput) #tests if more zeroes than expected
 testCategorical(simulationOutput, catPred = survi.data.exp$treatment) #tests residuals against a categorical predictor to assess homogeneity of variance; heteroscedasticity means that there is a systematic dependency of the dispersion / variance on another variable in the model...it means that the level of over/underdispersion depends on another parameter.
 testOutliers(simulationOutput)
+
+summary(final.mod)
+Anova(final.mod)
+
+# ANALYZE DATA: Effect of rearing density, mean days forelimb, and clutch on tank-level average gosner stage at end of experiment USING LONGFORM ---------------------
+lmm.full <- lmer(avg.gosner.stage ~ treatment + (1|clutchtank), data=devo.data.longform, na.action = na.omit)
+
+lmm.full.log <- lmer(log(avg.gosner.stage) ~ treatment + (1|clutchtank), data=devo.data.longform, na.action = na.omit)
+
+lmm.null <- lmer(avg.gosner.stage ~ 1 + (1|clutchtank), data=devo.data.longform, na.action = na.omit)
+#lmm.null <- lmer(devo.stage ~ 1 + (1|clutchtank), data=data.gstage, na.action = na.omit)
+
+# model selection using likelihood ratio test
+anova(lmm.full, lmm.null, test="Chisq")
+
+# Final Model
+final.mod = lmm.full
+
+# check assumptions
+simulationOutput <- simulateResiduals(fittedModel = lmm.full.log, quantreg=T, plot = T) #provides summary of model fitting tests
+
+testDispersion(simulationOutput) #tests for over- and under-dispersion
+testZeroInflation(simulationOutput) #tests if more zeroes than expected
+testCategorical(simulationOutput, catPred = devo.data.longform$treatment) #tests residuals against a categorical predictor to assess homogeneity of variance; heteroscedasticity means that there is a systematic dependency of the dispersion / variance on another variable in the model...it means that the level of over/underdispersion depends on another parameter.
+testOutliers(simulationOutput)
+
+summary(final.mod)
+Anova(final.mod)
 
 
 # ANALYZE DATA: Effect of rearing density, water level reduction, week, and larv tank id nested within clutch on % metamorphosing individuals weekly up until metamorphosis ---------------------
@@ -667,13 +740,13 @@ glmm.nointxn.01 <- glmer(status ~ treatment + week + water.level.reduc + (1|clut
 
 glmm.nointxn.01.slopes <- glmer(status ~ treatment + week + water.level.reduc + (week||clutchtank), data=morph.data.tad.exp.longform, na.action = na.omit, family = binomial, control=glmerControl(optimizer="bobyqa",optCtrl=list(maxfun=2e5)))
 
-glmm.null.01 <- glmer(status ~ (1|clutchtank), data=morph.data.tad.exp.longform, na.action = na.omit, family = binomial, control=glmerControl(optimizer="bobyqa",optCtrl=list(maxfun=2e5)))
+glmm.null.01 <- glmer(status ~ 1 + (1|clutchtank), data=morph.data.tad.exp.longform, na.action = na.omit, family = binomial, control=glmerControl(optimizer="bobyqa",optCtrl=list(maxfun=2e5)))
 
-#model selection out of 0/1 logit models using likelihood-ratio test
-anova(glmm.full.01, glmm.nointxn.01, glmm.null.01)
+# model selection using AICc for non-nested models but removing models that failed to converge or had singular fit
+arrange(AICc(glmm.full.01, glmm.full.01.slopes, 
+             glmm.nointxn.01, 
+             glmm.null.01), AICc)
 
-#model selection out of best-fit 0/1 logit models using AICc
-AICc(glmm.full.01, glmm.full.01.slopes)
 
 #double-check assumptions
 simulateResiduals(fittedModel = glmm.full.01, quantreg=T, plot = T) #provides summary of model fitting tests
@@ -685,13 +758,14 @@ testDispersion(glmm.full.01)
 # Final Model: although poly3 better supported, it causes a VERY weird looking graph so I think that actually the cubic root transformation is not an appropriate assumption for this
 final.mod = glmm.full.01
 summary(final.mod)
+Anova(final.mod, type = "III", contrasts=list(topic=contr.sum, sys=contr.sum))
 
 # create dataframe of predicted values that can be plotted on ggplot later
 predicted.df.prop.mm <- ggeffects::ggpredict(final.mod, terms = c("week[all]", "treatment"), type = "random", interval = "confidence")
 
 
 # ANALYZE DATA: Effect of rearing density, week, and larv tank id nested within clutch on % metamorphosing individuals CALCULATED ONLY FROM SURVIVING INDIVIDUALS weekly up until metamorphosis ---------------------
-morph.data.tad.exp.longformsurvi$week = as.numeric(morph.data.tad.exp.longformsurvi$week) #models run a lot faster and converge better with numeric
+morph.data.tad.exp.longformsurvi$week = as.numeric(morph.data.tad.exp.longformsurvi$week) #models run a lot faster and converge better with numeric 
 
 # model definition 
 glmm.full.01<- glmer(status ~ treatment*week + water.level.reduc + (1|clutchtank), data=morph.data.tad.exp.longformsurvi, na.action = na.omit, family = binomial, control=glmerControl(optimizer="bobyqa",optCtrl=list(maxfun=2e5)))
@@ -702,11 +776,10 @@ glmm.nointxn.01 <- glmer(status ~ treatment + week + water.level.reduc + (1|clut
 
 glmm.null.01 <- glmer(status ~ (1|clutchtank), data=morph.data.tad.exp.longformsurvi, na.action = na.omit, family = binomial, control=glmerControl(optimizer="bobyqa",optCtrl=list(maxfun=2e5)))
 
-#model selection out of 0/1 logit models using likelihood-ratio test
-anova(glmm.full.01, glmm.nointxn.01, glmm.null.01)
-
-#model selection out of best-fit 0/1 logit models using AICc
-AICc(glmm.full.01, glmm.full.01.slopes)
+# model selection using AICc for non-nested models but removing models that failed to converge or had singular fit
+arrange(AICc(glmm.full.01, glmm.full.01.slopes, 
+             glmm.nointxn.01, 
+             glmm.null.01), AICc)
 
 simulateResiduals(fittedModel = glmm.full.01, quantreg=T, plot = T) #provides summary of model fitting tests
 plotResiduals(glmm.full.01, form = morph.data.tad.exp.longformsurvi$treatment)
@@ -717,7 +790,7 @@ testOutliers(glmm.full.01, type = "bootstrap")
 
 
 #final model - allowing random slopes of treatment across week is not supported
-Anova(glmm.full.01, type = "II")
+Anova(glmm.full.01, type = "III")
 summary(glmm.full.01)
 
 
@@ -769,26 +842,38 @@ plot.devo.2 <- ggMarginal(plot.devo.2, margins = "y", groupColour = TRUE, groupF
 
 
 # plotted with clutch lumped together under each density group for FIRST 10%
-fig.1c <- ggplot(data = devo.data.first10[devo.data.first10$first.10perc == "yes",], aes(y=days.forelimb, x = clutch, color = treatment, show.legend = FALSE)) + 
-  geom_point(position=position_jitterdodge(jitter.width = 0.5, jitter.height = 0.1, seed = 1), size = 1, alpha = 0.7, show.legend = FALSE) +
-  geom_boxplot(alpha = 0.6, size = 0.75, show.legend = FALSE, aes(fill = treatment), outlier.colour = "gray1", outlier.size = 1) +
-  scale_color_manual(values=c(natparks.pals("BryceCanyon")[3], natparks.pals("BryceCanyon")[1])) +
-  scale_fill_manual(values=c(natparks.pals("BryceCanyon")[3], natparks.pals("BryceCanyon")[1])) +
+fig.1c <- ggplot(data = filter(devo.data, first.10perc == "yes"), aes(y=days.forelimb, x = treatment, color = treatment, show.legend = FALSE)) + 
+  
+  geom_point(position=position_jitterdodge(jitter.width = 0.5, jitter.height = 0, seed = 1), size = 1.5, alpha = 0.7, show.legend = FALSE) +
+  
+  geom_boxplot(alpha = 0.6, size = 1, show.legend = FALSE, aes(fill = treatment), outlier.colour = "gray1", outlier.size = 1) +
+  
+  scale_color_manual(values=c(natparks.pals("Arches")[4], natparks.pals("Arches")[1])) +
+  scale_fill_manual(values=c(natparks.pals("Arches")[4], natparks.pals("Arches")[1])) +
+  
   theme_bw() +
   theme(legend.title = element_blank(),
         legend.text = element_text(size=20),
         legend.position = "none",
-        axis.text.x = element_text(size=16, color = "black"), 
-        axis.text.y=element_text(size=16, color = "black"), 
-        axis.title.x = element_text(size=16),
-        axis.title.y = element_text(size=16),
+        axis.text.x = element_text(size=20, color = "black"), 
+        axis.text.y=element_text(size=20, color = "black"), 
+        axis.title.x = element_text(size=20),
+        axis.title.y = element_text(size=20),
         axis.ticks.x = element_blank(),
         panel.grid.major = element_blank(), 
         panel.grid.minor = element_blank()) +
-  scale_y_continuous(name = "larval duration (days)") +
-  scale_x_discrete(name = "clutch")
-
-fig.1c <- ggExtra::ggMarginal(fig.1c, margins = "y", groupColour = TRUE, groupFill = TRUE)
+  
+  geom_signif(comparisons = list(c("low density", "high density")), 
+              map_signif_level=TRUE,
+              annotations = "p < 0.001",
+              size = 1,
+              tip_length = 0,
+              vjust = -0.3,
+              textsize = 6,
+              color = "black") + 
+  
+  scale_y_continuous(name = "larval duration (days)", limits = c(43.75,76), breaks = seq(45,76,5), labels = seq(45,76,5)) +
+  scale_x_discrete(name = "")
 
 
 # PLOT DATASETS: Effect of rearing density on proportion tank initiated metamorphosis by experiment completion ---------------------
@@ -799,138 +884,103 @@ fig.1a <- ggplot() +
   
   #individual tanks
   #geom_jitter(width=0.4, size = 2, alpha = 0.7, data = survi.data.tad.exp, pch = 21, aes(y=prop.seed.forelimb, x = as.numeric(week), fill = treatment, color = treatment)) +
-  geom_point(size = 1, alpha = 0.7, data = survi.data.tad.exp, pch = 21, aes(y=prop.seed.forelimb, x = as.numeric(week), color = treatment, fill =treatment)) +
-  geom_line(size = 0.5, alpha = 0.7, data = survi.data.tad.exp, pch = 21, aes(y=prop.seed.forelimb, x = as.numeric(week), color = treatment, group = clutchtank)) +
+  geom_point(size = 1.5, alpha = 0.7, data = survi.data.tadexp, pch = 21, aes(y=prop.seed.forelimb, x = as.numeric(week), color = treatment, fill =treatment)) +
+  geom_line(size = 0.5, alpha = 0.7, data = survi.data.tadexp, aes(y=prop.seed.forelimb, x = as.numeric(week), color = treatment, group = clutchtank)) +
   
   #treatment means
-  stat_summary(data = survi.data.tad.exp, fun=mean, geom="line", size = 0.8, color = "black", aes(x = as.numeric(week), y = prop.seed.forelimb, group = treatment), show.legend = FALSE) + #show.legend is FALSE so that alpha = 1 legend from stat summary will be plotted
-  stat_summary(data = survi.data.tad.exp, fun = mean,
+  stat_summary(data = survi.data.tadexp, fun=mean, geom="line", size = 1, color = "black", aes(x = as.numeric(week), y = prop.seed.forelimb, group = treatment), show.legend = FALSE) + #show.legend is FALSE so that alpha = 1 legend from stat summary will be plotted
+  stat_summary(data = survi.data.tadexp, fun = mean,
                geom = "errorbar",
                fun.max = function(x) mean(x) + sd(x) / sqrt(length(x)), #plotting +1 se
                fun.min = function(x) mean(x) - sd(x) / sqrt(length(x)), #plotting -1 se
-               width=0.07, size = 0.7, colour="black", alpha=0.7, aes(x = as.numeric(week), y = prop.seed.forelimb, group = treatment)) +
-  stat_summary(data = survi.data.tad.exp, fun = mean, geom="point", color = "black", pch=21, size=5, stroke = 1, aes(x = as.numeric(week), y = prop.seed.forelimb, fill=treatment), show.legend = TRUE) + 
+               width=0.1, size = 0.8, colour="black", alpha=1, aes(x = as.numeric(week), y = prop.seed.forelimb, group = treatment)) +
+  stat_summary(data = survi.data.tadexp, fun = mean, geom="point", color = "black", pch=21, size=5, stroke = 1, aes(x = as.numeric(week), y = prop.seed.forelimb, fill=treatment), show.legend = TRUE) +
   
-  #predicted from model
-  geom_ribbon(data = predicted.df.prop.mm,
-              alpha = 0.6,
-              mapping = aes(x = x, y = predicted, ymin = conf.low, ymax = conf.high, fill = group, color = group), show.legend = FALSE) +
-  geom_line(data = predicted.df.prop.mm,
-              alpha = 1,
-              size = 1.5, color = "black", linetype = 2,
-              mapping = aes(x = x, y = predicted, group = group), show.legend = FALSE) +
+  scale_color_manual(values=c(natparks.pals("Arches")[4], natparks.pals("Arches")[1])) +
+  scale_fill_manual(values=c(natparks.pals("Arches")[4], natparks.pals("Arches")[1])) +
   
-  scale_color_manual(values=c(natparks.pals("BryceCanyon")[3], natparks.pals("BryceCanyon")[1])) +
-  scale_fill_manual(values=c(natparks.pals("BryceCanyon")[3], natparks.pals("BryceCanyon")[1])) +
   theme_bw() +
   theme(legend.title = element_blank(),
         legend.text = element_text(size=20),
         legend.position = "none",
-        axis.text.x=element_text(size=16, color = "black"), 
-        axis.text.y=element_text(size=16, color = "black"), 
-        axis.title.x=element_text(size=16, color = "black"), 
-        axis.title.y = element_text(size=16),
+        axis.text.x=element_text(size=20, color = "black"), 
+        axis.text.y=element_text(size=20, color = "black"), 
+        axis.title.x=element_text(size=20, color = "black"), 
+        axis.title.y = element_text(size=20),
         panel.grid.major = element_blank(), 
         panel.grid.minor = element_blank()) +
-  scale_y_continuous(name = "percent metamorphosed") + #, limits = c(0,0.35), breaks = c(0,.1,.2,.3), labels = c(0,10,20,30)) +
-  scale_x_continuous(name = "age (weeks)", breaks = seq(0, 12, by = 1))
+  
+  scale_y_continuous(name = "% metamorphosed", limits = c(0,0.3), breaks = seq(0,0.3,0.1), labels = c(0,10,20,30)) +
+  scale_x_continuous(name = "larval age (weeks)", breaks = seq(0, 11, by = 1))
 
 
 # raw number metamorphosed from tank seeding to tank close-out without clutch included and plotting all tanks across time with means overlaid
-fig.1b <- ggplot(data = survi.data.tad.exp, aes(y=metamorph.num.cumul, x = as.numeric(week))) + 
+fig.1b <- ggplot(data = survi.data.tadexp, aes(y=metamorph.num.cumul, x = as.numeric(week))) + 
   
   #individual tanks
   #geom_jitter(width=0.4, size = 2, alpha = 0.7, data = survi.data.tad.exp, pch = 21, aes(y=prop.seed.forelimb, x = as.numeric(week), fill = treatment, color = treatment)) +
-  geom_point(size = 1, alpha = 0.7, pch = 21, aes(color = treatment, fill = treatment)) +
-  geom_line(size = 0.5, alpha = 0.7, pch = 21, aes(color = treatment, group = clutchtank)) +
+  geom_point(size = 1.5, alpha = 0.7, pch = 21, aes(color = treatment, fill = treatment)) +
+  geom_line(size = 0.5, alpha = 0.7, aes(color = treatment, group = clutchtank)) +
   
   #treatment means
-  stat_summary(fun=mean, geom="line", size = 0.8, color = "black", aes(group = treatment), show.legend = FALSE) + #show.legend is FALSE so that alpha = 1 legend from stat summary will be plotted
+  stat_summary(fun=mean, geom="line", size = 1, color = "black", aes(group = treatment), show.legend = FALSE) + #show.legend is FALSE so that alpha = 1 legend from stat summary will be plotted
   stat_summary(fun = mean,
                geom = "errorbar",
                fun.max = function(x) mean(x) + sd(x) / sqrt(length(x)), #plotting +1 se
                fun.min = function(x) mean(x) - sd(x) / sqrt(length(x)), #plotting -1 se
-               width=0.07, size = 0.7, colour="black", alpha=0.7, aes(group = treatment)) +
+               width=0.1, size = 0.8, colour="black", alpha=1, aes(group = treatment)) +
   stat_summary(fun = mean, geom="point", color = "black", pch=21, size=5, stroke = 1, aes(fill=treatment), show.legend = TRUE) + 
   
-  scale_color_manual(values=c(natparks.pals("BryceCanyon")[3], natparks.pals("BryceCanyon")[1])) +
-  scale_fill_manual(values=c(natparks.pals("BryceCanyon")[3], natparks.pals("BryceCanyon")[1])) +
+  scale_color_manual(values=c(natparks.pals("Arches")[4], natparks.pals("Arches")[1])) +
+  scale_fill_manual(values=c(natparks.pals("Arches")[4], natparks.pals("Arches")[1])) +
   theme_bw() +
   theme(legend.title = element_blank(),
-                legend.position = "none",
+        legend.position = "none",
         legend.text = element_text(size=20),
-        axis.text.x=element_text(size=16, color = "black"), 
-        axis.text.y=element_text(size=16, color = "black"), 
-        axis.title.x=element_text(size=16, color = "black"), 
-        axis.title.y = element_text(size=16),
+        axis.text.x=element_text(size=20, color = "black"), 
+        axis.text.y=element_text(size=20, color = "black"), 
+        axis.title.x=element_text(size=20, color = "black"), 
+        axis.title.y = element_text(size=20),
         panel.grid.major = element_blank(), 
         panel.grid.minor = element_blank()) +
   expand_limits(y = 0) +
-  scale_y_continuous(name = "number metamorphosed", limits = c(0,25)) +
-  scale_x_continuous(name = "age (weeks)", breaks = seq(1, 11, by = 1))
+  scale_y_continuous(name = "# metamorphosed", limits = c(0,20)) +
+  scale_x_continuous(name = "larval age (weeks)", breaks = seq(1, 11, by = 1))
 
 
 # PLOT DATASETS: Effect of rearing density on gosner stage for individuals from each tank (includes all metamorphosed individuals static at GS 42) -----------------------
-ggplot(data = survi.data.exp, aes(y=tank.devo.stage, x = treatment, color = treatment)) + 
-  geom_point(position=position_jitterdodge(), size = 2.5, alpha = 1, show.legend = FALSE) +
-  geom_boxplot(alpha = 0.6, size = 0.75) +
-  scale_color_manual(values=c(natparks.pals("BryceCanyon")[3], natparks.pals("BryceCanyon")[1])) +
-  scale_fill_manual(values=c(natparks.pals("BryceCanyon")[3], natparks.pals("BryceCanyon")[1])) +
+fig.1d <- ggplot(data = survi.data.exp, aes(y=tank.devo.stage, x = treatment, color = treatment), show.legend = FALSE) + 
+  
+  geom_point(position=position_jitterdodge(jitter.width = 0.5, jitter.height = 0, seed = 1), size = 1.5, alpha = 0.7, show.legend = FALSE, aes(group=clutchtank)) +
+  
+  geom_boxplot(alpha = 0.6, size = 1, show.legend = FALSE, aes(fill = treatment), outlier.colour = "gray1", outlier.size = 1) +
+  
+  scale_color_manual(values=c(natparks.pals("Arches")[4], natparks.pals("Arches")[1])) +
+  scale_fill_manual(values=c(natparks.pals("Arches")[4], natparks.pals("Arches")[1])) +
+  
   theme_bw() +
-  theme(legend.position = c(0.02, 0.98),
-        legend.justification = c("left", "top"),
-        legend.title = element_blank(),
-        legend.text = element_text(size=10),
-        axis.text.x = element_text(size=12, color = "black"), 
-        axis.text.y=element_text(size=12, color = "black"), 
-        axis.title.x = element_text(size=12),
-        axis.title.y = element_text(size=12),
+  theme(legend.title = element_blank(),
+        legend.text = element_text(size=20),
+        legend.position = "none",
+        axis.text.x = element_text(size=20, color = "black"), 
+        axis.text.y=element_text(size=20, color = "black"), 
+        axis.title.x = element_text(size=20),
+        axis.title.y = element_text(size=20),
+        axis.ticks.x = element_blank(),
         panel.grid.major = element_blank(), 
         panel.grid.minor = element_blank()) +
-  scale_y_continuous(name = "mean tank gosner stage at end of experiment", limits = c(26, 42), breaks = seq(26,42,2)) +
-  scale_x_discrete()
-
-#histogram representing distribution of tank means
-ggplot() + 
-  geom_histogram(data = survi.data.exp, na.rm = TRUE, binwidth = 0.5, color = "black", alpha = 0.7, position = "identity", aes(x = tank.devo.stage, fill = treatment)) + 
-  facet_grid(rows = vars(treatment)) +
-  geom_density(data = survi.data.exp, na.rm = TRUE, alpha = 0.5, aes(x = tank.devo.stage, color = treatment, fill = treatment)) +
-  scale_fill_manual(values=c(natparks.pals("BryceCanyon")[3], natparks.pals("BryceCanyon")[1])) +
-  scale_color_manual(values=c(natparks.pals("BryceCanyon")[3], natparks.pals("BryceCanyon")[1])) +
-  theme_bw() +
-  theme(legend.position = c(0.02, 0.98),
-        legend.justification = c("left", "top"),
-        legend.title = element_blank(),
-        legend.text = element_text(size=10),
-        axis.text.x = element_text(size=12, color = "black"), 
-        axis.text.y=element_text(size=12, color = "black"), 
-        axis.title.x = element_text(size=12),
-        axis.title.y = element_text(size=12),
-        panel.grid.major = element_blank(), 
-        panel.grid.minor = element_blank()) +
-  scale_y_continuous(limits = c(0,5)) +
-  scale_x_continuous(name = "gosner stage at end of experiment", limits = c(26, 42), breaks = seq(26,42,2))
-
-#histogram representing distributions not plotted by tank mean
-ggplot() + 
-  geom_histogram(data = data.gstage, na.rm = TRUE, binwidth = 1, color = "black", alpha = 0.7, position = "identity", aes(x = devo.stage, fill = treatment)) + 
-  facet_grid(rows = vars(treatment)) +
-  geom_density(data = data.gstage, na.rm = TRUE, alpha = 0.5, aes(x = devo.stage, color = treatment, fill = treatment)) +
-  scale_color_manual(values=c(natparks.pals("BryceCanyon")[3], natparks.pals("BryceCanyon")[1])) +
-  scale_fill_manual(values=c(natparks.pals("BryceCanyon")[3], natparks.pals("BryceCanyon")[1])) +
-  theme_bw() +
-  theme(legend.position = c(0.02, 0.98),
-        legend.justification = c("left", "top"),
-        legend.title = element_blank(),
-        legend.text = element_text(size=10),
-        axis.text.x = element_text(size=12, color = "black"), 
-        axis.text.y=element_text(size=12, color = "black"), 
-        axis.title.x = element_text(size=12),
-        axis.title.y = element_text(size=12),
-        panel.grid.major = element_blank(), 
-        panel.grid.minor = element_blank()) +
-  scale_y_continuous(limits = c(0,50)) +
-  scale_x_continuous(name = "gosner stage at end of experiment", limits = c(26, 42), breaks = seq(26,42,2))
+  
+  geom_signif(comparisons = list(c("low density", "high density")), 
+              map_signif_level=TRUE,
+              annotations = "p < 0.001",
+              size = 1,
+              tip_length = 0,
+              vjust = -0.3,
+              textsize = 6,
+              color = "black") + 
+  
+  scale_y_continuous(name = "mean Gosner stage", limits = c(31.75,39.4), breaks = seq(32,39,1), labels = seq(32,39,1)) +
+  scale_x_discrete(name = "")
 
 
 # PLOT DATASETS: Effect of rearing density, average gosner stage on size for individuals from each tank (includes all metamorphosed individuals static at GS 42) -----------------------
@@ -973,22 +1023,66 @@ ggplot(data = survi.data.exp, aes(y=tank.devo.stage, x = mean.mm.mass.g, color =
   scale_x_continuous(name = "mean mass at metamorphosis", limits = c(0.1, 0.25))
 
 
-# PANEL PLOTS: Panel plot of developmental results ---------------------
-ggarrange(fig.1a, fig.1b, fig.1c, #fig.1d,
+# PANEL PLOTS + EXPORT PLOTS: Panel plot of developmental results ---------------------
+pdf("~/Desktop/R Working Directory/Plots/Figure1.pdf", width = 11, height = 8.5)
+ggarrange(fig.1a, fig.1b, fig.1c, fig.1d,
           common.legend = TRUE, 
           legend = "bottom", 
           labels = c("a", "b", "c", "d"),
-          font.label = list(size = 20, color = "black"))
+          font.label = list(size = 20, color = "black"),
+          vjust = 1.5)
+dev.off()
+
+png("~/Desktop/R Working Directory/Plots/Figure1.png", units = "in", res = 300, width = 8.5, height = 8.5)
+ggarrange(fig.1a, fig.1b, fig.1c, fig.1d,
+          common.legend = TRUE, 
+          legend = "bottom", 
+          labels = c("a", "b", "c", "d"),
+          font.label = list(size = 20, color = "black"),
+          vjust = 1.5)
+dev.off()
 # show.legend = FALSE in boxplots so that the common legend pulls from the other plots
 
 #ggarrange doesn't show density plot from ggmarginal so trying this way
-gridExtra::grid.arrange(fig.1a, fig.1b, fig.1c, #fig.1d, 
-                        ncol=2, nrow=2)
+gridExtra::grid.arrange(fig.1a, fig.1b, 
+                        ggExtra::ggMarginal(fig.1c, margins = "y", groupColour = TRUE, groupFill = TRUE), 
+                        ggExtra::ggMarginal(fig.1d, margins = "y", groupColour = TRUE, groupFill = TRUE), 
+                        ncol=2, nrow=2,
+                        
+                        )
+
+
+# DOWNLOAD DATA FOR JOURNAL SUBMISSION  ---------------------
+#set wd
+setwd("~/Desktop/R Working Directory/2023_ranid_devo_plasticity/Submission_RoySocB")
+
+write.csv(devo.data.first10[devo.data.first10$first.10perc == "yes", c(1:8, 9:10, 13:16, 30, 32)], file = "Database_Development.csv", row.names = FALSE)
+
+write.csv(survi.data.exp[,c(1:9, 11:16, 18:19, 21:22)], file = "Database_Survivorship_Tadpole_Experiment.csv", row.names = FALSE) #need to do this here because includes gosner stage data in addition to survivorship data
+
+write.csv(survi.data.tad.exp[,c(1:16,18)], file = "Database_Survivorship_Tadpole_WeeklyAndExperiment.csv", row.names = FALSE)
+
+write.csv(morph.data.tad.exp.longform, file = "Database_Survivorship_Tadpole_WeeklyAndExperiment_Longform.csv", row.names = FALSE)
+
+write.csv(morph.data.tad.exp.longformsurvi, file = "Database_Survivorship_Tadpole_WeeklyAndExperiment_LongformSurvi.csv", row.names = FALSE)
+
 
 # SUMMARY TABLES: Developmental metrics ---------------------
 
 #reset working directory to be outputs folder
 setwd("~/Desktop/R Working Directory/Outputs")
+
+#by week summary
+devo.data.mm.summ.byweek = survi.data.tad.exp %>%
+  group_by(treatment, week) %>%
+  filter(gs.code== "RS") %>%
+  summarise(mean.prop.forelimb = round(mean(prop.seed.forelimb, na.rm = TRUE), 2),
+            sd.prop.forelimb = round(sd(prop.seed.forelimb, na.rm = TRUE), 2),
+            min.prop.forelimb = round(min(prop.seed.forelimb, na.rm = TRUE), 2),
+            max.prop.forelimb = round(max(prop.seed.forelimb, na.rm = TRUE), 2),
+            range.prop.forelimb = round(max(prop.seed.forelimb, na.rm = TRUE) - min(prop.seed.forelimb, na.rm = TRUE), 2),
+  )
+
 
 #tadpole summary
 devo.data.mm.summ = devo.data %>%
@@ -1017,15 +1111,17 @@ devo.data.summ = devo.data %>%
 
 survi.data.exp.summ = survi.data.exp %>%
   group_by(treatment) %>%
-  summarise(num.seeded = sum(seed.num - leth.samp.num, na.rm = TRUE), 
-            num.survi = sum(larv.num + metamorph.num.cumul, na.rm = TRUE),
+  summarise(num.seeded = sum(seed.num - leth.samp.num.cumul, na.rm = TRUE), 
+            num.survi = sum(photo.num + metamorph.num.cumul, na.rm = TRUE),
             num.metamorph = sum(metamorph.num.cumul, na.rm = TRUE),
             mean.metamorph = round(mean(metamorph.num.cumul, na.rm = TRUE), 2),
             sd.metamorph = round(sd(metamorph.num.cumul, na.rm = TRUE), 2),
             mean.prop.seeded = round(mean(prop.seed.forelimb, na.rm = TRUE), 3),
             sd.prop.seeded = round(sd(prop.seed.forelimb, na.rm = TRUE), 3),
             mean.prop.survi = round(mean(prop.surv.forelimb, na.rm = TRUE), 3),
-            sd.prop.survi = round(sd(prop.surv.forelimb, na.rm = TRUE), 3)
+            sd.prop.survi = round(sd(prop.surv.forelimb, na.rm = TRUE), 3),
+            mean.tank.devo.stage = round(mean(tank.devo.stage, na.rm = TRUE), 1),
+            sd.tank.devo.stage = round(sd(tank.devo.stage, na.rm = TRUE), 1)
   )
 
 
@@ -1044,12 +1140,16 @@ devo.data.summ = devo.data %>%
   )
 
 survi.data.exp.summ = survi.data.exp %>%
-  group_by(treatment, water.level.reduc) %>%
+  group_by(treatment) %>%
   summarise(num.seeded = sum(seed.num - leth.samp.num.cumul, na.rm = TRUE), 
             num.survi = sum(photo.num + metamorph.num.cumul, na.rm = TRUE),
             num.metamorph = sum(metamorph.num.cumul, na.rm = TRUE),
+            min.prop.seeded = min(prop.seed.forelimb, na.rm = TRUE),
+            max.prop.seed = max(prop.seed.forelimb, na.rm = TRUE),
             mean.metamorph = round(mean(metamorph.num.cumul, na.rm = TRUE), 2),
             sd.metamorph = round(sd(metamorph.num.cumul, na.rm = TRUE), 2),
+            min.metamorph = min(metamorph.num.cumul, na.rm = TRUE),
+            max.metamorph = max(metamorph.num.cumul, na.rm = TRUE),
             mean.prop.seeded = round(mean(prop.seed.forelimb, na.rm = TRUE), 3),
             sd.prop.seeded = round(sd(prop.seed.forelimb, na.rm = TRUE), 3),
             mean.prop.survi = round(mean(prop.surv.forelimb, na.rm = TRUE), 3),
